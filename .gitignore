@@ -1,0 +1,7 @@
+*.pyc
+*.out
+.env
+*.log
+datasets/*
+paper_output*
+*.zip

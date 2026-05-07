@@ -1,0 +1,15 @@
+google-genai
+json_repair
+matplotlib
+openai
+opencv-python
+pydantic
+PyMuPDF
+pymupdf4llm
+pyOpenSSL
+pypdf
+python-dotenv
+rich
+streamlit
+thefuzz
+tqdm
