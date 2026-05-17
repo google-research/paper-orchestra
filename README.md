@@ -92,14 +92,11 @@ We provide an interactive Streamlit demo for the paper generation pipeline. For 
 If you find this repo or our paper helpful, please cite it as follows:
 
 ```bibtex
-@misc{song2026paperorchestramultiagentframeworkautomated,
-      title={PaperOrchestra: A Multi-Agent Framework for Automated AI Research Paper Writing}, 
-      author={Yiwen Song and Yale Song and Tomas Pfister and Jinsung Yoon},
-      year={2026},
-      eprint={2604.05018},
-      archivePrefix={arXiv},
-      primaryClass={cs.AI},
-      url={https://arxiv.org/abs/2604.05018}, 
+@article{song2026paperorchestra,
+  title={PaperOrchestra: A Multi-Agent Framework for Automated AI Research Paper Writing},
+  author={Song, Yiwen and Song, Yale and Pfister, Tomas and Yoon, Jinsung},
+  journal={arXiv preprint arXiv:2604.05018},
+  year={2026}
 }
 ```
 
