@@ -16,7 +16,7 @@ import os
 import json
 import numpy as np
 
-from utils.gemini_utils import call_gemini_with_text_prompt
+from utils.llm_backend_utils import call_llm_with_text_prompt
 
 # --- AGENTREVIEW SPECIFIC CONSTANTS (From role_descriptions.py) ---
 
@@ -134,7 +134,7 @@ Here is the paper you are asked to review:
         parsed_reviews = []
         for i in range(num_review_ensemble):
             print(f"Generating ensemble review {i + 1}/{num_review_ensemble}...")
-            response = call_gemini_with_text_prompt(
+            response = call_llm_with_text_prompt(
                 prompt=base_prompt,
                 model_name=model_name,
                 generation_configs={
@@ -169,7 +169,7 @@ Here is the paper you are asked to review:
             if scores:
                 review[score] = int(round(np.mean(scores)))
     else:
-        response = call_gemini_with_text_prompt(
+        response = call_llm_with_text_prompt(
             prompt=base_prompt,
             model_name=model_name,
             generation_configs={
@@ -197,7 +197,7 @@ Review {i + 1}/{len(reviews)}:
 ```
 """
     base_prompt = AGENTREVIEW_INSTRUCTIONS + review_text
-    response = call_gemini_with_text_prompt(
+    response = call_llm_with_text_prompt(
         prompt=base_prompt,
         model_name=model,
         generation_configs={
