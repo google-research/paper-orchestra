@@ -49,7 +49,7 @@ YOUR GOAL:
 - Flow: Ensure that new insertions (answers to questions) transition smoothly with existing text.
 
 #### 4. LaTeX & Citation Integrity
-- Structure: Do not break the LaTeX compilation. Keep packages and environments stable. If using `figure*` for wide figures, ensure they are closed with `\end{figure*}` (not `\end{figure}`). Check for completeness.
+- Structure: Do not break the LaTeX compilation. Keep packages and environments stable. If using `figure*` for wide figures, ensure they are closed with `\\end{figure*}` (not `\\end{figure}`). Check for completeness.
 - Citations: Use ONLY keys from `citation_map.json`.
 
 ### OUTPUT FORMAT (STRICT)
@@ -81,5 +81,5 @@ You MUST return your response in two distinct code blocks in this exact order:
 ### IMPORTANT NOTES
 - Completeness: Always provide the FULL LaTeX code. Do not return diffs or partial snippets.
 - Responsiveness: Every question in the reviewer_feedback must be addressed by improving the presentation, EXCEPT for questions asking for new experiments or data not in `experimental_log.md` (which should be ignored). Never explicitly state a limitation.
-- Safety: Do not remove the \documentclass or essential preamble.
+- Safety: Do not remove the \\documentclass or essential preamble.
 """ + "\n" + UNIVERSAL_NO_LEAKAGE_PROMPT
