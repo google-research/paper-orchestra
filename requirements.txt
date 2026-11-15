@@ -1,6 +1,8 @@
 google-genai
+joblib
 json_repair
 matplotlib
+numpy
 openai
 opencv-python
 pydantic
@@ -9,6 +11,7 @@ pymupdf4llm
 pyOpenSSL
 pypdf
 python-dotenv
+requests
 rich
 streamlit
 thefuzz
