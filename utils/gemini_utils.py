@@ -28,24 +28,38 @@ import dotenv
 dot_file = os.path.join(os.path.dirname(__file__), "../.env")
 dotenv.load_dotenv(dot_file)
 
-vertex_ai_project = os.getenv("VERTEX_AI_PROJECT")
-vertex_ai_location = os.getenv("VERTEX_AI_LOCATION")
-gemini_api_key = os.getenv("GEMINI_API_KEY")
+genai_client = None
 
-if vertex_ai_project and vertex_ai_location:
-    print(
-        f"Using Vertex AI configuration. Project: {vertex_ai_project}, Location: {vertex_ai_location}"
-    )
-    genai_client = genai.Client(
-        vertexai=True, project=vertex_ai_project, location=vertex_ai_location
-    )
-elif gemini_api_key:
-    print("Using Gemini API Key configuration.")
-    genai_client = genai.Client(api_key=gemini_api_key)
-else:
-    raise ValueError(
-        "Either VERTEX_AI_PROJECT/VERTEX_AI_LOCATION or GEMINI_API_KEY must be set."
-    )
+
+def get_genai_client():
+    """Return the shared Gemini client, creating it on first use.
+
+    The key is only required when a Gemini model is actually called, so
+    importing this module (and the pipeline) works without a Gemini key,
+    for example when only OpenAI models are selected. The environment is
+    read here, not at import time, so a key set after import still works.
+    """
+    global genai_client
+    if genai_client is not None:
+        return genai_client
+    vertex_ai_project = os.getenv("VERTEX_AI_PROJECT")
+    vertex_ai_location = os.getenv("VERTEX_AI_LOCATION")
+    gemini_api_key = os.getenv("GEMINI_API_KEY")
+    if vertex_ai_project and vertex_ai_location:
+        print(
+            f"Using Vertex AI configuration. Project: {vertex_ai_project}, Location: {vertex_ai_location}"
+        )
+        genai_client = genai.Client(
+            vertexai=True, project=vertex_ai_project, location=vertex_ai_location
+        )
+    elif gemini_api_key:
+        print("Using Gemini API Key configuration.")
+        genai_client = genai.Client(api_key=gemini_api_key)
+    else:
+        raise ValueError(
+            "Either VERTEX_AI_PROJECT/VERTEX_AI_LOCATION or GEMINI_API_KEY must be set."
+        )
+    return genai_client
 
 
 def parse_gemini_json_results(response: str):
@@ -151,9 +165,11 @@ def call_gemini_with_contents(
     raw_response = None
     parsed_response = None
 
+    client = get_genai_client()
+
     for attempt in range(max_retries):
         try:
-            response = genai_client.models.generate_content(
+            response = client.models.generate_content(
                 model=model_name,
                 contents=contents,
                 config=types.GenerateContentConfig(**generation_configs),
@@ -271,6 +287,8 @@ def generate_image_with_gemini(
     if generation_configs is None:
         generation_configs = {}
 
+    client = get_genai_client()
+
     for attempt in range(max_retries):
         try:
             config_args = {
@@ -283,7 +301,7 @@ def generate_image_with_gemini(
             }
             config_args.update(generation_configs)
 
-            response = genai_client.models.generate_content(
+            response = client.models.generate_content(
                 model=model_name,
                 contents=[types.Part.from_text(text=prompt)],
                 config=types.GenerateContentConfig(**config_args),
