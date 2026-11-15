@@ -33,6 +33,9 @@ import zipfile
 from streamlit.runtime.scriptrunner import add_script_run_ctx
 import signal
 import ctypes
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from frontend_utils import send_notification_email
 
 load_dotenv()
