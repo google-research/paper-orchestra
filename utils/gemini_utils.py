@@ -25,6 +25,14 @@ import base64
 
 import dotenv
 
+from utils.common_utils import (
+    parse_gemini_json_latex_response,
+    parse_gemini_latex_results,
+)
+# Re-exported here so existing imports keep working. The functions live
+# in utils.common_utils now because they are pure text parsing and need
+# no API key. pylint: disable=unused-import
+
 dot_file = os.path.join(os.path.dirname(__file__), "../.env")
 dotenv.load_dotenv(dot_file)
 
@@ -92,47 +100,6 @@ def parse_gemini_json_results(response: str):
         pass
 
     return None  # No valid JSON found
-
-
-def parse_gemini_latex_results(response: str):
-    match = re.search(r"```latex\s*(.*?)\s*```", response.strip(), re.DOTALL)
-    if match:
-        latex_string = match.group(1)
-    else:
-        latex_string = response
-    return latex_string
-
-
-def parse_gemini_json_latex_response(response_text: str) -> Dict[str, Any]:
-    """
-    Extracts the JSON worklog and the LaTeX code from the LLM response.
-    Expected format:
-      ... arbitrary text ...
-      ```json
-      { ... }
-      ```
-      ... arbitrary text ...
-      ```latex
-      ...
-      ```
-    """
-    result = {"json": None, "latex": None}
-
-    json_match = re.search(r"```json\s*(.*?)\s*```", response_text, re.DOTALL)
-    if json_match:
-        try:
-            result["json"] = json.loads(json_match.group(1))
-        except json.JSONDecodeError:
-            print(" >> Error: Failed to parse JSON worklog from response.")
-            result["json"] = {"error": "Invalid JSON format returned"}
-
-    latex_match = re.search(r"```latex\s*(.*?)\s*```", response_text, re.DOTALL)
-    if latex_match:
-        result["latex"] = latex_match.group(1)
-    else:
-        print(" >> Warning: No ```latex``` block found.")
-
-    return json.dumps(result)
 
 
 def call_gemini_with_contents(

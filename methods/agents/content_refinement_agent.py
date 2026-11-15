@@ -19,11 +19,8 @@ import shutil
 from google.genai import types  # type: ignore
 
 from utils.pdf_utils import compile_latex, load_paper, pdf_to_grid_images
-from utils.gemini_utils import (
-    call_gemini_with_contents,
-    parse_gemini_json_latex_response,
-    call_gemini_with_images,
-)
+from utils.common_utils import parse_gemini_json_latex_response
+from utils.llm_backend_utils import call_llm_with_contents, call_llm_with_images
 
 from autoraters.agent_review import perform_review_agentreview
 
@@ -162,7 +159,7 @@ Respond in JSON format with the following structure:
 ```
 """
             )
-            response_dict = call_gemini_with_images(
+            response_dict = call_llm_with_images(
                 prompt=prompt,
                 images=image_paths,
                 model_name=self.model_name,
@@ -290,7 +287,7 @@ INSTRUCTION:
 
             print(" >> calling Refinement Agent...")
             try:
-                response_dict = call_gemini_with_contents(
+                response_dict = call_llm_with_contents(
                     contents=[
                         types.Part.from_bytes(
                             data=pdf_bytes, mime_type="application/pdf"
@@ -517,7 +514,7 @@ block.
 """
 
             try:
-                response_dict = call_gemini_with_contents(
+                response_dict = call_llm_with_contents(
                     contents=[
                         types.Part.from_text(text=prompt),
                     ],
