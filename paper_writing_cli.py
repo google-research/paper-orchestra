@@ -60,6 +60,16 @@ def main():
         help="LLM for reflection agents.",
     )
     parser.add_argument(
+        "--model_provider",
+        default="auto",
+        choices=["auto", "gemini", "openai", "openrouter"],
+        help="Model provider to use. Default: auto (picked from the model "
+        "name). Use openrouter to run with a free model through "
+        "OpenRouter, for example --writer_model_name "
+        "google/gemma-4-26b-a4b-it:free. OpenRouter is only used when "
+        "you choose it here or pass a vendor/model name.",
+    )
+    parser.add_argument(
         "--research_cutoff",
         default=None,
         help="Year-Month cutoff date for literature review (e.g., 2024-11). If not provided, defaults to current Year-Month.",
@@ -88,6 +98,10 @@ def main():
     )
 
     args = parser.parse_args()
+
+    from utils.llm_backend_utils import set_model_provider
+
+    set_model_provider(args.model_provider)
 
     if args.research_cutoff is None:
         args.research_cutoff = datetime.now().strftime("%Y-%m")

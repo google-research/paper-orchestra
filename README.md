@@ -75,6 +75,30 @@ python paper_writing_cli.py \
 *   `--use_plotting`: Enable the plotting agent workflow to generate figures from code (Default: `False`).
 *   `--writer_model_name`: LLM for writer and literature agents.
 *   `--reflection_model_name`: LLM for reflection agents.
+*   `--model_provider`: Provider to use: `auto`, `gemini`, `openai`, or `openrouter`. Default: `auto` (picked from the model name). OpenRouter is only used when you choose it here or pass a `vendor/model` name.
+
+### Run with free models (OpenRouter)
+
+The pipeline can run with free models through OpenRouter instead of a paid Gemini or OpenAI key. This is strictly optional: the default models stay the Gemini ones, and nothing changes unless you choose OpenRouter.
+
+1. Get a free OpenRouter key at https://openrouter.ai/keys and set it:
+```bash
+OPENROUTER_API_KEY=<redacted>
+```
+The key is required even though the models cost nothing. Free models are rate limited and can be slower than paid models.
+2. Run with a free model, for example Google's Gemma (262,144 token context, verified free at the time of writing):
+```bash
+python paper_writing_cli.py \
+  --raw_materials_dir /path_to_your_raw_materials/ \
+  --latex_template_dir /path_to_your_latex_template/ \
+  --output_dir /path_to_your_output_folder/ \
+  --model_provider openrouter \
+  --writer_model_name google/gemma-4-26b-a4b-it:free \
+  --reflection_model_name google/gemma-4-26b-a4b-it:free
+```
+You can also skip `--model_provider`: any model name with a slash (OpenRouter ids look like `vendor/model`) is routed to OpenRouter automatically. Other free options include `google/gemma-4-31b-it:free` and `nvidia/nemotron-3-ultra-550b-a55b:free`.
+
+Two steps still need Gemini: literature discovery uses Gemini's Google Search tool, and diagram image generation uses Gemini image generation. Both keep working with a Gemini key set alongside the OpenRouter key, while the rest of the pipeline runs on the free model.
 
 ### Interactive Demo
 
