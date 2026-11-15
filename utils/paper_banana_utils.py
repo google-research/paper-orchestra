@@ -23,7 +23,6 @@ from typing import Dict, Any, List, Tuple
 from google.genai import types
 
 from utils.gemini_utils import (
-    genai_client,
     call_gemini_with_text_prompt,
     call_gemini_with_contents,
     generate_image_with_gemini,

@@ -22,30 +22,50 @@ import time
 import os
 import mimetypes
 import base64
+import threading
 
 import dotenv
 
 dot_file = os.path.join(os.path.dirname(__file__), "../.env")
 dotenv.load_dotenv(dot_file)
 
-vertex_ai_project = os.getenv("VERTEX_AI_PROJECT")
-vertex_ai_location = os.getenv("VERTEX_AI_LOCATION")
-gemini_api_key = os.getenv("GEMINI_API_KEY")
+_genai_client = None
+_genai_client_lock = threading.Lock()
 
-if vertex_ai_project and vertex_ai_location:
-    print(
-        f"Using Vertex AI configuration. Project: {vertex_ai_project}, Location: {vertex_ai_location}"
-    )
-    genai_client = genai.Client(
-        vertexai=True, project=vertex_ai_project, location=vertex_ai_location
-    )
-elif gemini_api_key:
-    print("Using Gemini API Key configuration.")
-    genai_client = genai.Client(api_key=gemini_api_key)
-else:
-    raise ValueError(
-        "Either VERTEX_AI_PROJECT/VERTEX_AI_LOCATION or GEMINI_API_KEY must be set."
-    )
+
+def get_genai_client() -> genai.Client:
+    """Returns a shared Gemini client, creating it on first use.
+
+    The client is created lazily so that Gemini credentials are only required
+    when a Gemini model is actually called (e.g. OpenAI-only setups don't need
+    them). Vertex AI takes precedence over GEMINI_API_KEY when both are set.
+    """
+    global _genai_client
+    if _genai_client is None:
+        with _genai_client_lock:
+            if _genai_client is None:
+                vertex_ai_project = os.getenv("VERTEX_AI_PROJECT")
+                vertex_ai_location = os.getenv("VERTEX_AI_LOCATION")
+                gemini_api_key = os.getenv("GEMINI_API_KEY")
+
+                if vertex_ai_project and vertex_ai_location:
+                    print(
+                        f"Using Vertex AI configuration. Project: {vertex_ai_project}, Location: {vertex_ai_location}"
+                    )
+                    _genai_client = genai.Client(
+                        vertexai=True,
+                        project=vertex_ai_project,
+                        location=vertex_ai_location,
+                    )
+                elif gemini_api_key:
+                    print("Using Gemini API Key configuration.")
+                    _genai_client = genai.Client(api_key=gemini_api_key)
+                else:
+                    raise ValueError(
+                        "Either VERTEX_AI_PROJECT/VERTEX_AI_LOCATION or GEMINI_API_KEY"
+                        " must be set to use Gemini models."
+                    )
+    return _genai_client
 
 
 def parse_gemini_json_results(response: str):
@@ -151,6 +171,7 @@ def call_gemini_with_contents(
     raw_response = None
     parsed_response = None
 
+    genai_client = get_genai_client()
     for attempt in range(max_retries):
         try:
             response = genai_client.models.generate_content(
@@ -271,6 +292,7 @@ def generate_image_with_gemini(
     if generation_configs is None:
         generation_configs = {}
 
+    genai_client = get_genai_client()
     for attempt in range(max_retries):
         try:
             config_args = {
