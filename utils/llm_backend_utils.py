@@ -50,6 +50,133 @@ def get_llm_parser(model_name: str, return_json: bool = True) -> Callable:
         return parse_gemini_json_results
 
 
+def _is_openai_model(model_name: str) -> bool:
+    name = model_name.lower()
+    return "gpt" in name or "o1" in name or "o3" in name
+
+
+def _contents_to_openai_content(contents) -> list:
+    """Convert Gemini style contents to OpenAI chat content parts.
+
+    Accepts a single string, a single google.genai types.Part, or a list of
+    either. Text parts become text parts. Inline PDF bytes are read as text
+    with pypdf and included as text, because the OpenAI chat API takes no
+    PDF part. Inline image bytes become base64 image_url parts.
+    """
+    import base64
+    import io
+
+    if isinstance(contents, (str, types.Part)):
+        parts = [contents]
+    else:
+        parts = list(contents)
+
+    openai_content = []
+    for part in parts:
+        if isinstance(part, str):
+            openai_content.append({"type": "text", "text": part})
+            continue
+        text = getattr(part, "text", None)
+        if text:
+            openai_content.append({"type": "text", "text": text})
+            continue
+        inline_data = getattr(part, "inline_data", None)
+        if inline_data is not None:
+            data = inline_data.data
+            mime_type = getattr(inline_data, "mime_type", "") or ""
+            if mime_type == "application/pdf":
+                from pypdf import PdfReader
+
+                reader = PdfReader(io.BytesIO(data))
+                pdf_text = "".join(
+                    page.extract_text() or "" for page in reader.pages
+                )
+                openai_content.append(
+                    {"type": "text", "text": f"[PDF content]\n{pdf_text}"}
+                )
+            elif mime_type.startswith("image/"):
+                encoded = base64.b64encode(data).decode("utf-8")
+                openai_content.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{mime_type};base64,{encoded}"
+                        },
+                    }
+                )
+            else:
+                raise ValueError(
+                    f"Unsupported inline content type: {mime_type}. "
+                    "call_llm_with_contents can only send text, PDF, and "
+                    "image parts to OpenAI models."
+                )
+            continue
+        raise ValueError(
+            "Unsupported content part for OpenAI models: "
+            f"{type(part).__name__}. call_llm_with_contents can only send "
+            "text, PDF, and image parts to OpenAI models."
+        )
+    return openai_content
+
+
+def call_llm_with_contents(
+    contents,
+    model_name: str,
+    max_retries: int = 5,
+    base_interval_sec: int = 5,
+    result_parsing_func: Optional[Callable] = None,
+    generation_configs: Optional[Dict[str, Any]] = None,
+    check_parsed_response_not_none: bool = True,
+    return_json: bool = True,
+) -> Dict[str, Any]:
+    """
+    Unified function to call either Gemini or OpenAI models with a list of
+    contents (plain strings or google.genai types.Part), based on the
+    model_name. Writing agents use this so a writer model name such as
+    gpt-5 reaches the OpenAI backend instead of the Gemini API. Gemini
+    models receive the contents unchanged.
+    """
+    if generation_configs is None:
+        generation_configs = {}
+
+    parser = (
+        result_parsing_func
+        if result_parsing_func is not None
+        else get_llm_parser(model_name, return_json)
+    )
+
+    if _is_openai_model(model_name):
+        system_prompt = None
+        configs_for_openai = dict(generation_configs)
+        if "system_instruction" in configs_for_openai:
+            system_prompt = configs_for_openai.pop("system_instruction")
+        if "temperature" in configs_for_openai:
+            configs_for_openai.pop("temperature")
+
+        response_dict = call_openai_models_with_content(
+            content=_contents_to_openai_content(contents),
+            model_name=model_name,
+            generation_configs=configs_for_openai,
+            result_parsing_func=parser,
+            check_parsed_response_not_none=check_parsed_response_not_none,
+            max_retries=max_retries,
+            base_interval_sec=base_interval_sec,
+            system_prompt=system_prompt,
+        )
+        return response_dict
+
+    response_dict = call_gemini_with_contents(
+        contents=contents,
+        model_name=model_name,
+        generation_configs=generation_configs,
+        result_parsing_func=parser,
+        check_parsed_response_not_none=check_parsed_response_not_none,
+        max_retries=max_retries,
+        base_interval_sec=base_interval_sec,
+    )
+    return response_dict
+
+
 def call_llm_with_text_prompt(
     prompt: str,
     model_name: str,
