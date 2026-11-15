@@ -27,11 +27,24 @@ from dotenv import load_dotenv  # type: ignore
 dot_file = os.path.join(os.path.dirname(__file__), "../.env")
 load_dotenv(dot_file)
 
-openai_api_key = os.environ.get("OPENAI_API_KEY")
-if not openai_api_key:
-    raise ValueError("OPENAI_API_KEY must be set.")
+openai_client = None
 
-openai_client = OpenAI(api_key=openai_api_key)
+
+def get_openai_client():
+    """Return a shared OpenAI client, creating it on first use.
+
+    The client is created lazily so that importing this module does not
+    require OPENAI_API_KEY to be set. The key is only required when an
+    OpenAI model is actually called, which lets Gemini-only runs start
+    without an OpenAI key.
+    """
+    global openai_client
+    if openai_client is None:
+        openai_api_key = os.environ.get("OPENAI_API_KEY")
+        if not openai_api_key:
+            raise ValueError("OPENAI_API_KEY must be set.")
+        openai_client = OpenAI(api_key=openai_api_key)
+    return openai_client
 
 
 def parse_openai_json_results(response: str):
@@ -107,6 +120,11 @@ def call_openai_models_with_content(
     raw_response = None
     parsed_response = None
 
+    # Resolve the client before retrying. A missing key is a configuration
+    # error, not a transient failure, so it fails fast instead of being
+    # retried and sleeping between attempts.
+    client = get_openai_client()
+
     for attempt in range(max_retries):
         try:
             messages = []
@@ -116,7 +134,7 @@ def call_openai_models_with_content(
 
             messages.append({"role": "user", "content": content})
 
-            response = openai_client.chat.completions.create(
+            response = client.chat.completions.create(
                 model=model_name,
                 messages=messages,
                 **generation_configs,
