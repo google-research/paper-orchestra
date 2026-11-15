@@ -37,7 +37,7 @@ YOUR GOAL:
 - Placement(CRITICAL): Ensure figures appear near or before their first reference. Make sure no figure appears after the Conclusion section.
 - Missing Figures: Ensure ALL figures from `figures_list` are implemented. DO NOT merge or combine multiple figures into one.
 - Optimization: Always prefer single-column (`figure`) to save space.
-- Sizing: Use `width=1.0\linewidth` (relative to column). Never set fixed height AND width (preserve aspect ratio).
+- Sizing: Use `width=1.0\\linewidth` (relative to column). Never set fixed height AND width (preserve aspect ratio).
 
 #### 2. Table Readability
 - Placement(CRITICAL): Ensure tables appear near or before their first reference. Make sure no table appears after the Conclusion section.
