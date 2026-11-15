@@ -13,8 +13,60 @@
 # limitations under the License.
 
 import datetime
+import json
 import os
 import os.path as osp
+import re
+from typing import Dict, Any
+
+
+def parse_gemini_latex_results(response: str):
+    """Extract LaTeX from a model response.
+
+    Pure text processing, no API key needed. Kept here so modules that
+    only need the parser do not have to import utils.gemini_utils,
+    which requires a Gemini key at import time.
+    """
+    match = re.search(r"```latex\s*(.*?)\s*```", response.strip(), re.DOTALL)
+    if match:
+        latex_string = match.group(1)
+    else:
+        latex_string = response
+    return latex_string
+
+
+def parse_gemini_json_latex_response(response_text: str) -> Dict[str, Any]:
+    """
+    Extracts the JSON worklog and the LaTeX code from the LLM response.
+    Expected format:
+      ... arbitrary text ...
+      ```json
+      { ... }
+      ```
+      ... arbitrary text ...
+      ```latex
+      ...
+      ```
+    Pure text processing, no API key needed. Kept here for the same
+    reason as parse_gemini_latex_results.
+    """
+    result = {"json": None, "latex": None}
+
+    json_match = re.search(r"```json\s*(.*?)\s*```", response_text, re.DOTALL)
+    if json_match:
+        try:
+            result["json"] = json.loads(json_match.group(1))
+        except json.JSONDecodeError:
+            print(" >> Error: Failed to parse JSON worklog from response.")
+            result["json"] = {"error": "Invalid JSON format returned"}
+
+    latex_match = re.search(r"```latex\s*(.*?)\s*```", response_text, re.DOTALL)
+    if latex_match:
+        result["latex"] = latex_match.group(1)
+    else:
+        print(" >> Warning: No ```latex``` block found.")
+
+    return json.dumps(result)
 
 
 def create_log_folder(
