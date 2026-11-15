@@ -98,6 +98,12 @@ def main():
         )
         sys.exit(1)
 
+    if not os.path.exists(args.latex_template_dir):
+        print(
+            f"Error: LaTeX template directory '{args.latex_template_dir}' does not exist."
+        )
+        sys.exit(1)
+
     if args.output_dir:
         base_dir = args.output_dir
     else:
