@@ -299,6 +299,19 @@ def render_pdf_and_snapshots(pdf_path, snapshots_directory, download_key):
 # ------------------------------------------------------------------------
 
 
+def _set_parent_death_signal():
+    """Ask the OS to kill the pipeline process if the Streamlit server dies.
+
+    Uses prctl (PR_SET_PDEATHSIG), which only exists on Linux. On other
+    systems the cleanup is skipped instead of crashing the run.
+    """
+    try:
+        libc = ctypes.CDLL(None)
+        libc.prctl(1, signal.SIGKILL)
+    except (AttributeError, OSError):
+        pass
+
+
 def handle_live_execution(
     steps, email_input, selected_template, selected_model, enable_plotting
 ):
@@ -376,12 +389,6 @@ def handle_live_execution(
                 figures_list,
             ):
                 try:
-                    libc = ctypes.CDLL(None)
-                    process_set_parent_death_signal = 1
-
-                    def set_death_signal():
-                        libc.prctl(process_set_parent_death_signal, signal.SIGKILL)
-
                     os.makedirs(run_directory, exist_ok=True)
                     raw_materials_directory = os.path.join(
                         run_directory, "raw_materials"
@@ -416,7 +423,7 @@ def handle_live_execution(
                         stderr=subprocess.STDOUT,
                         text=True,
                         cwd=working_directory,
-                        preexec_fn=set_death_signal,
+                        preexec_fn=_set_parent_death_signal,
                     )
 
                     current_step_name = steps_list[0]
