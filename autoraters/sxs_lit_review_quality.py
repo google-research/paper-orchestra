@@ -34,37 +34,26 @@ def rate_sxs_lit_review(
 
     prompt = f"Paper 1:\n{paper1_text}\n\n---\n\nPaper 2:\n{paper2_text}\n\nTask: Compare the literature review quality of these two papers side by side."
 
+    generation_configs = {"system_instruction": sxs_lit_review_quality_system_prompt}
+    # Only Gemini gets temperature 0 here (matching the original behaviour);
+    # any other model name is routed by call_llm_with_text_prompt. Previously a
+    # name containing neither "gemini" nor "gpt" (e.g. "o3-mini") looped forever.
+    if "gemini" in model_name.lower():
+        generation_configs["temperature"] = 0.0
+
     while (not succeed) and cur_try < max_retries:
         try:
-            if "gemini" in model_name:
-                response_dict = call_llm_with_text_prompt(
-                    prompt=prompt,
-                    model_name=model_name,
-                    generation_configs={
-                        "system_instruction": sxs_lit_review_quality_system_prompt,
-                        "temperature": 0.0,
-                    },
-                )
-                succeed = True
-                return (
-                    response_dict.get("parsed_response", response_dict)
-                    if isinstance(response_dict, dict)
-                    else response_dict
-                )
-            elif "gpt" in model_name:
-                response_dict = call_llm_with_text_prompt(
-                    prompt=prompt,
-                    model_name=model_name,
-                    generation_configs={
-                        "system_instruction": sxs_lit_review_quality_system_prompt,
-                    },
-                )
-                succeed = True
-                return (
-                    response_dict.get("parsed_response", response_dict)
-                    if isinstance(response_dict, dict)
-                    else response_dict
-                )
+            response_dict = call_llm_with_text_prompt(
+                prompt=prompt,
+                model_name=model_name,
+                generation_configs=generation_configs,
+            )
+            succeed = True
+            return (
+                response_dict.get("parsed_response", response_dict)
+                if isinstance(response_dict, dict)
+                else response_dict
+            )
 
         except Exception as e:
             print(
@@ -110,8 +99,9 @@ def _process_and_save_single_sxs(
         )
         return paper_id, False
 
-    winner1 = rating1.get("winner", "").lower() if isinstance(rating1, dict) else ""
-    winner2 = rating2.get("winner", "").lower() if isinstance(rating2, dict) else ""
+    # str(... or "") guards against "winner": null / non-string values.
+    winner1 = str(rating1.get("winner") or "").lower() if isinstance(rating1, dict) else ""
+    winner2 = str(rating2.get("winner") or "").lower() if isinstance(rating2, dict) else ""
 
     r1_result = "tie"
     if "paper_1" in winner1 or "paper 1" in winner1:

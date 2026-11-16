@@ -170,8 +170,9 @@ def _process_and_save_single_sxs(
         )
         return paper_id, False
 
-    winner1 = rating1.get("winner", "").lower() if isinstance(rating1, dict) else ""
-    winner2 = rating2.get("winner", "").lower() if isinstance(rating2, dict) else ""
+    # str(... or "") guards against "winner": null / non-string values.
+    winner1 = str(rating1.get("winner") or "").lower() if isinstance(rating1, dict) else ""
+    winner2 = str(rating2.get("winner") or "").lower() if isinstance(rating2, dict) else ""
 
     r1_result = "tie"
     if "paper_1" in winner1 or "paper 1" in winner1:

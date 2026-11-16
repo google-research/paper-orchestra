@@ -256,6 +256,7 @@ def print_literature_review_stats(file_path):
         return
 
     total_papers = 0
+    scored_papers = 0
     total_overall_score_sum = 0
     axis_data = {}
 
@@ -264,9 +265,18 @@ def print_literature_review_stats(file_path):
             continue
 
         total_papers += 1
-        total_overall_score_sum += paper_content.get(
-            "overall_score", paper_content.get("overall_quality_score", 0)
-        )
+        overall = paper_content.get("overall_score")
+        if overall is None:
+            overall = paper_content.get("overall_quality_score")
+        # Skip null/missing/non-numeric scores instead of crashing (None) or
+        # counting them as 0, which biased the mean downward.
+        try:
+            overall = float(overall)
+        except (TypeError, ValueError):
+            overall = None
+        if overall is not None:
+            total_overall_score_sum += overall
+            scored_papers += 1
 
         axis_scores_dict = paper_content.get("axis_scores", {})
 
@@ -301,7 +311,11 @@ def print_literature_review_stats(file_path):
 
     overall_metrics = {}
 
-    avg_overall = total_overall_score_sum / total_papers
+    avg_overall = (
+        total_overall_score_sum / scored_papers if scored_papers else float("nan")
+    )
+    if scored_papers < total_papers:
+        print(f"Note: {total_papers - scored_papers} paper(s) had no overall score and were excluded.")
     print(f"{'Overall Score':<45} | {avg_overall:.2f}")
     overall_metrics["overall_score"] = avg_overall
     print("-" * 60)

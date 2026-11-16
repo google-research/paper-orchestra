@@ -16,7 +16,9 @@ import os
 import json
 import numpy as np
 
-from utils.gemini_utils import call_gemini_with_text_prompt
+# Dispatch on model name so OpenAI reviewer models work too (the content
+# refinement agent passes its configured reflection model here).
+from utils.llm_backend_utils import call_llm_with_text_prompt
 
 # --- AGENTREVIEW SPECIFIC CONSTANTS (From role_descriptions.py) ---
 
@@ -134,7 +136,7 @@ Here is the paper you are asked to review:
         parsed_reviews = []
         for i in range(num_review_ensemble):
             print(f"Generating ensemble review {i + 1}/{num_review_ensemble}...")
-            response = call_gemini_with_text_prompt(
+            response = call_llm_with_text_prompt(
                 prompt=base_prompt,
                 model_name=model_name,
                 generation_configs={
@@ -143,9 +145,14 @@ Here is the paper you are asked to review:
                 },
             )
             parsed_reviews.append(response["parsed_response"])
-        review = get_meta_review(model_name, temperature, parsed_reviews)
-        if review is None:
-            review = parsed_reviews[0]
+        try:
+            review = get_meta_review(model_name, temperature, parsed_reviews)
+        except Exception as e:
+            # Don't throw away the ensemble reviews if only the meta-review fails.
+            print(f"Meta-review failed ({e}); falling back to the first review.")
+            review = None
+        if not isinstance(review, dict):
+            review = dict(parsed_reviews[0])
         for score, limits in [
             ("Originality", (1, 4)),
             ("Quality", (1, 4)),
@@ -159,7 +166,7 @@ Here is the paper you are asked to review:
         ]:
             scores = []
             for r in parsed_reviews:
-                if score in r:
+                if isinstance(r, dict) and score in r:
                     try:
                         val = int(r[score])
                         if limits[0] <= val <= limits[1]:
@@ -169,7 +176,7 @@ Here is the paper you are asked to review:
             if scores:
                 review[score] = int(round(np.mean(scores)))
     else:
-        response = call_gemini_with_text_prompt(
+        response = call_llm_with_text_prompt(
             prompt=base_prompt,
             model_name=model_name,
             generation_configs={
@@ -197,7 +204,7 @@ Review {i + 1}/{len(reviews)}:
 ```
 """
     base_prompt = AGENTREVIEW_INSTRUCTIONS + review_text
-    response = call_gemini_with_text_prompt(
+    response = call_llm_with_text_prompt(
         prompt=base_prompt,
         model_name=model,
         generation_configs={
