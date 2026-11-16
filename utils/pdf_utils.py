@@ -254,40 +254,33 @@ def pdf_to_grid_images(pdf_path, output_dir, scale=2.0):
     """Converts a PDF to 2x2 grid images of its pages.
     Returns a list of paths to the generated grid images.
     """
-    doc = pymupdf.open(pdf_path)
-    os.makedirs(output_dir, exist_ok=True)
-
     mat = pymupdf.Matrix(scale, scale)
-    pixmaps = []
-    for page in doc:
-        pix = page.get_pixmap(matrix=mat)
-        pixmaps.append(pix)
-
     grid_image_paths = []
 
-    for i in range(0, len(pixmaps), 4):
-        chunk = pixmaps[i : i + 4]
+    with pymupdf.open(pdf_path) as doc:
+        os.makedirs(output_dir, exist_ok=True)
+        for start in range(0, len(doc), 4):
+            img_list = []
+            for page_index in range(start, min(start + 4, len(doc))):
+                pix = doc.load_page(page_index).get_pixmap(matrix=mat)
+                img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(
+                    pix.h, pix.w, pix.n
+                )
+                img_list.append(img)
 
-        img_list = []
-        for pix in chunk:
-            img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(
-                pix.h, pix.w, pix.n
-            )
-            img_list.append(img)
+            while len(img_list) < 4:
+                ref_img = img_list[0]
+                white_img = np.ones_like(ref_img) * 255
+                img_list.append(white_img)
 
-        while len(img_list) < 4:
-            ref_img = img_list[0]
-            white_img = np.ones_like(ref_img) * 255
-            img_list.append(white_img)
+            row1 = np.hstack((img_list[0], img_list[1]))
+            row2 = np.hstack((img_list[2], img_list[3]))
+            grid = np.vstack((row1, row2))
 
-        row1 = np.hstack((img_list[0], img_list[1]))
-        row2 = np.hstack((img_list[2], img_list[3]))
-        grid = np.vstack((row1, row2))
+            grid_path = os.path.join(output_dir, f"grid_{start // 4 + 1}.png")
+            grid_bgr = cv2.cvtColor(grid, cv2.COLOR_RGB2BGR)
+            cv2.imwrite(grid_path, grid_bgr)
 
-        grid_path = os.path.join(output_dir, f"grid_{i//4 + 1}.png")
-        grid_bgr = cv2.cvtColor(grid, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(grid_path, grid_bgr)
-
-        grid_image_paths.append(grid_path)
+            grid_image_paths.append(grid_path)
 
     return grid_image_paths
