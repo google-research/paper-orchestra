@@ -19,7 +19,7 @@ import datetime
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Optional, Dict
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from google.genai import types  # type: ignore
 
 from methods.prompts.literature_review_agent import (
@@ -54,6 +54,7 @@ class PaperData(BaseModel):
     volume: Optional[str] = None
     pages: Optional[str] = None
     publication_date: Optional[str] = None
+    additional_sections: List[str] = Field(default_factory=list)
 
 
 class WriterOutput(BaseModel):
@@ -271,17 +272,15 @@ class HybridLiteratureAgent:
         # Group keys by section name
         section_to_keys = {}
         for p in registry.values():
-            sec = p.found_in_section
-            if sec not in section_to_keys:
-                section_to_keys[sec] = []
-            section_to_keys[sec].append(p.citation_key)
+            for section in [p.found_in_section, *p.additional_sections]:
+                section_to_keys.setdefault(section, []).append(p.citation_key)
 
         plan = outline.get("intro_related_work_plan", {})
 
         # Introduction
         intro_strat = plan.get("introduction_strategy", {})
         intro_keys = section_to_keys.get("Introduction", [])
-        intro_strat["citation_candidates"] = list(set(intro_keys))
+        intro_strat["citation_candidates"] = intro_keys
 
         # Related Work
         rw_strat = plan.get("related_work_strategy", {})
@@ -329,9 +328,12 @@ class HybridLiteratureAgent:
         cand_reason = getattr(cand, "reason", None) or cand.get("reason", "")
 
         norm_title = self._normalize_title(cand_title)
+        section = task["section"]
 
         with self.registry_lock:
-            if norm_title in registry:
+            existing = registry.get(norm_title)
+            if existing is not None:
+                self._record_section(existing, section)
                 return
 
         try:
@@ -363,7 +365,7 @@ class HybridLiteratureAgent:
                     year=s2_data.get("year") or cand_year,
                     abstract=abstract_text,
                     citation_count=s2_data.get("citationCount") or 0,
-                    found_in_section=task["section"],
+                    found_in_section=section,
                     reason=cand_reason,
                     journal=j_info.get("name"),
                     volume=j_info.get("volume"),
@@ -374,13 +376,21 @@ class HybridLiteratureAgent:
                 final_norm_title = self._normalize_title(full_obj.title)
 
                 with self.registry_lock:
-                    if final_norm_title not in registry:
+                    existing = registry.get(final_norm_title)
+                    if existing is not None:
+                        self._record_section(existing, section)
+                    else:
                         registry[final_norm_title] = full_obj
                         self._safe_print(
                             f"      -> 📚 Added enriched paper: {full_obj.title}"
                         )
         except Exception as e:
             pass
+
+    @staticmethod
+    def _record_section(paper: PaperData, section: str) -> None:
+        if section != paper.found_in_section and section not in paper.additional_sections:
+            paper.additional_sections.append(section)
 
     def _is_paper_allowed(self, s2_data: Dict, cutoff_date_str: str) -> bool:
         if not cutoff_date_str:
