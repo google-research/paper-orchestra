@@ -28,6 +28,7 @@ from methods.agents.content_refinement_agent import ContentRefinementAgent
 from utils.common_utils import (
     create_log_folder,
 )
+from utils.resume_utils import ResumeState, hash_paths, stage_key
 
 
 def write_single_paper(
@@ -38,14 +39,17 @@ def write_single_paper(
     writer_model_name: str = "gemini-3.1-pro-preview",
     reflection_model_name: str = "gemini-3.1-pro-preview",
     research_cutoff: str = "2024-11",
+    resume: bool = False,
 ):
     latex_writeup_dir = osp.join(base_dir, "latex_writeup")
     pdf_file = osp.join(base_dir, "final_paper.pdf")
+    state = ResumeState(base_dir, enabled=resume)
 
-    if osp.exists(latex_writeup_dir):
-        shutil.rmtree(latex_writeup_dir)
-    if osp.exists(pdf_file):
-        os.remove(pdf_file)
+    if not resume:
+        if osp.exists(latex_writeup_dir):
+            shutil.rmtree(latex_writeup_dir)
+        if osp.exists(pdf_file):
+            os.remove(pdf_file)
 
     materials_dir = osp.join(base_dir, "raw_materials")
 
@@ -90,17 +94,44 @@ def write_single_paper(
 
             ###############################################################################################
             # Step 1: Call outline agent
+            # Each key covers only what its stage reads, chained to earlier stages,
+            # so a figure edit does not rerun outline and literature search.
+            outline_key = stage_key(
+                hash_paths(
+                    [
+                        idea_file_path,
+                        experimental_log_file_path,
+                        osp.join(latex_template_dir, "template.tex"),
+                        osp.join(latex_template_dir, "guidelines.md"),
+                    ]
+                ),
+                writer_model_name,
+                research_cutoff,
+            )
+            literature_key = stage_key(outline_key, "literature")
+            sections_key = stage_key(
+                literature_key, "sections", hash_paths([old_figure_dir])
+            )
+            refinement_key = stage_key(
+                sections_key, hash_paths([latex_template_dir]), reflection_model_name
+            )
+
             outline_agent = OutlineAgent(
                 model_name=writer_model_name, cutoff_date=research_cutoff
             )
             outline_file_path = osp.join(base_dir, "outline.json")
-            outline_agent.run(
-                idea_file=idea_file_path,
-                experimental_log_file=experimental_log_file_path,
-                latex_template_file=latex_template_path,
-                conference_guidelines_file=guidelines_path,
-                output_filepath=outline_file_path,
-            )
+            if state.is_done("outline", outline_key, [outline_file_path]):
+                print(" >> Resume: outline already complete, skipping.")
+            else:
+                state.begin("outline")
+                outline_agent.run(
+                    idea_file=idea_file_path,
+                    experimental_log_file=experimental_log_file_path,
+                    latex_template_file=latex_template_path,
+                    conference_guidelines_file=guidelines_path,
+                    output_filepath=outline_file_path,
+                )
+                state.done("outline", outline_key)
 
             ###############################################################################################
             # Step 2: Call HybridLiteratureAgent
@@ -114,10 +145,27 @@ def write_single_paper(
                 model_name=writer_model_name,
                 max_workers=3,
             )
-            literature_agent.run(
-                outline_path=outline_file_path,
-                cutoff_date=research_cutoff,
-            )
+            if state.is_done(
+                "literature",
+                literature_key,
+                [
+                    osp.join(literature_agent_output_dir, name)
+                    for name in (
+                        "outline_v1.json",
+                        "updated_template.tex",
+                        "references.bib",
+                        "citation_map.json",
+                    )
+                ],
+            ):
+                print(" >> Resume: literature review already complete, skipping.")
+            else:
+                state.begin("literature")
+                literature_agent.run(
+                    outline_path=outline_file_path,
+                    cutoff_date=research_cutoff,
+                )
+                state.done("literature", literature_key)
             shutil.copy(
                 osp.join(literature_agent_output_dir, "outline_v1.json"),
                 outline_file_path,
@@ -147,10 +195,19 @@ def write_single_paper(
                 model_name=writer_model_name,
             )
             raw_draft_tex_path = osp.join(latex_writeup_dir, "raw_draft_paper.tex")
-            section_writing_agent.run(output_path=raw_draft_tex_path)
+            if state.is_done("sections", sections_key, [raw_draft_tex_path]):
+                print(" >> Resume: draft sections already complete, skipping.")
+            else:
+                state.begin("sections")
+                section_writing_agent.run(output_path=raw_draft_tex_path)
+                state.done("sections", sections_key)
 
             ###############################################################################################
             # Step 4: Content Reflection
+            if state.is_done("refinement", refinement_key, [pdf_file]):
+                print(" >> Resume: final paper already complete:\n", pdf_file)
+                return True
+            state.begin("refinement")
             content_refinement_workdir = os.path.join(
                 base_dir, "content_refinement_workdir"
             )
@@ -185,6 +242,7 @@ def write_single_paper(
             )
             shutil.copy(content_refinment_agent_output_pdf_path, final_pdf_path)
             print(" >> Final PDF saved to:\n", final_pdf_path)
+            state.done("refinement", refinement_key)
 
             succeed = True
             return True
