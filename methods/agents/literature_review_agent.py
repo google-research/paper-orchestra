@@ -26,6 +26,7 @@ from methods.prompts.literature_review_agent import (
     literature_review_agent_writter_prompt,
 )
 from utils.gemini_utils import call_gemini_with_contents, parse_gemini_latex_results
+from utils.research_cutoff import parse_research_cutoff
 from utils.scholar_utils import s2_title_search
 
 
@@ -101,6 +102,8 @@ class HybridLiteratureAgent:
     ):
         if not cutoff_date:
             cutoff_date = datetime.datetime.now().strftime("%Y-%m")
+
+        parse_research_cutoff(cutoff_date)
 
         self._safe_print(
             f"🚀 Starting Fast Hybrid Literature Agent (Cutoff: {cutoff_date}, Threads: {self.max_workers})..."
@@ -338,9 +341,6 @@ class HybridLiteratureAgent:
             s2_data = s2_title_search(cand_title, cand_year, cutoff_date)
 
             if s2_data:
-                if not self._is_paper_allowed(s2_data, cutoff_date):
-                    return
-
                 if not s2_data.get("abstract", ""):
                     return
 
@@ -381,47 +381,6 @@ class HybridLiteratureAgent:
                         )
         except Exception as e:
             pass
-
-    def _is_paper_allowed(self, s2_data: Dict, cutoff_date_str: str) -> bool:
-        if not cutoff_date_str:
-            return True
-
-        c_parts = [int(x) for x in cutoff_date_str.split("-")]
-        c_y = c_parts[0]
-        c_m = c_parts[1] if len(c_parts) > 1 else 12
-        c_d = c_parts[2] if len(c_parts) > 2 else 1
-
-        p_y, p_m, p_d = None, None, None
-        if s2_data.get("publicationDate"):
-            try:
-                p_parts = [int(x) for x in str(s2_data["publicationDate"]).split("-")]
-                p_y = p_parts[0]
-                p_m = p_parts[1] if len(p_parts) > 1 else None
-                p_d = p_parts[2] if len(p_parts) > 2 else None
-            except:
-                pass
-
-        if p_y is None and s2_data.get("year"):
-            p_y = int(s2_data["year"])
-
-        if p_y is None:
-            return True
-        if p_y > c_y:
-            return False
-        if p_y < c_y:
-            return True
-        if p_m is None:
-            return True
-        if p_m > c_m:
-            return False
-        if p_m < c_m:
-            return True
-        if p_d is None:
-            return True
-        if p_d > c_d:
-            return False
-
-        return True
 
     def _discover_candidates(self, task, outline, cutoff_date) -> List[CandidatePaper]:
         intro_plan = outline.get("intro_related_work_plan", {}).get(

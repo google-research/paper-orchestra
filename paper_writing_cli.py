@@ -18,6 +18,8 @@ import os
 import shutil
 from datetime import datetime
 
+from utils.research_cutoff import parse_research_cutoff
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -62,7 +64,7 @@ def main():
     parser.add_argument(
         "--research_cutoff",
         default=None,
-        help="Year-Month cutoff date for literature review (e.g., 2024-11). If not provided, defaults to current Year-Month.",
+        help="Exclusive publication cutoff (YYYY, YYYY-MM, or YYYY-MM-DD). Defaults to the first day of the current month.",
     )
     parser.add_argument(
         "--use_plotting",
@@ -91,6 +93,11 @@ def main():
 
     if args.research_cutoff is None:
         args.research_cutoff = datetime.now().strftime("%Y-%m")
+
+    try:
+        parse_research_cutoff(args.research_cutoff)
+    except ValueError as exc:
+        parser.error(f"--research_cutoff: {exc}")
 
     if not os.path.exists(args.raw_materials_dir):
         print(
