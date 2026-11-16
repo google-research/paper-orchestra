@@ -54,7 +54,7 @@ class OutlineAgent:
         )
         json_result = response_dict["parsed_response"]
         if output_filepath is not None:
-            with open(output_filepath, "w") as f:
+            with open(output_filepath, "w", encoding="utf-8") as f:
                 json.dump(json_result, f, indent=4)
                 print(f"outline.json output written to {output_filepath}")
         return json_result

@@ -128,6 +128,12 @@ class SectionWritingAgent:
     def run(self, output_path: str) -> str:
         print(f" > Agent {self.__class__.__name__} starting...")
 
+        import os
+
+        # Never let a draft from a previous (failed) attempt be reused.
+        if os.path.exists(output_path):
+            os.remove(output_path)
+
         try:
             outline_content = self._read_file(self.outline_path)
             template_content = self._read_file(self.template_path)
@@ -139,6 +145,9 @@ class SectionWritingAgent:
             citation_library_content = self._format_citation_library(citation_map)
 
             figures_info = self._read_json(self.figures_info_path)
+            if not isinstance(figures_info, list):
+                figures_info = []
+            figures_info = [f for f in figures_info if isinstance(f, dict)]
             figures_content = self._format_figures_context(figures_info)
 
             import os
@@ -162,7 +171,9 @@ class SectionWritingAgent:
                             image_paths.append(img_path)
 
         except Exception as e:
-            return f"Error reading input files: {str(e)}"
+            # Fail loudly: returning a string let the pipeline continue and
+            # refine a stale or missing draft.
+            raise RuntimeError(f"Error reading input files: {str(e)}") from e
 
         user_prompt = f"""
 Here are the input materials for the paper.
