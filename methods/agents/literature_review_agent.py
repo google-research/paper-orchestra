@@ -56,6 +56,10 @@ class PaperData(BaseModel):
     publication_date: Optional[str] = None
     additional_sections: List[str] = Field(default_factory=list)
 
+    def record_section(self, section: str) -> None:
+        if section != self.found_in_section and section not in self.additional_sections:
+            self.additional_sections.append(section)
+
 
 class WriterOutput(BaseModel):
     sections_written: List[str]
@@ -333,7 +337,7 @@ class HybridLiteratureAgent:
         with self.registry_lock:
             existing = registry.get(norm_title)
             if existing is not None:
-                self._record_section(existing, section)
+                existing.record_section(section)
                 return
 
         try:
@@ -378,7 +382,7 @@ class HybridLiteratureAgent:
                 with self.registry_lock:
                     existing = registry.get(final_norm_title)
                     if existing is not None:
-                        self._record_section(existing, section)
+                        existing.record_section(section)
                     else:
                         registry[final_norm_title] = full_obj
                         self._safe_print(
@@ -386,11 +390,6 @@ class HybridLiteratureAgent:
                         )
         except Exception as e:
             pass
-
-    @staticmethod
-    def _record_section(paper: PaperData, section: str) -> None:
-        if section != paper.found_in_section and section not in paper.additional_sections:
-            paper.additional_sections.append(section)
 
     def _is_paper_allowed(self, s2_data: Dict, cutoff_date_str: str) -> bool:
         if not cutoff_date_str:
