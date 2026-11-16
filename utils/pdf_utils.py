@@ -20,6 +20,7 @@ import rich
 import traceback
 import subprocess
 import os.path as osp
+from pathlib import Path
 
 import pymupdf4llm  # type: ignore
 import pymupdf  # type: ignore
@@ -185,6 +186,7 @@ def compile_latex(cwd, pdf_file, texfile_name="template", timeout=30):
     ]
 
     execution_logs = []
+    timed_out = False
 
     for command in commands:
         cmd_str = " ".join(command)
@@ -211,14 +213,17 @@ def compile_latex(cwd, pdf_file, texfile_name="template", timeout=30):
             execution_logs.append(
                 {"cmd": cmd_str, "error": f"TIMEOUT after {timeout}s"}
             )
+            timed_out = True
+            break
         except Exception as e:
             execution_logs.append({"cmd": cmd_str, "error": str(e)})
 
-    has_timeout = any(
-        "error" in log and "TIMEOUT" in log["error"] for log in execution_logs
-    )
+    if timed_out:
+        # Callers often use the compiler output path as the requested path.
+        # Remove output from an earlier pass so those callers see the failure.
+        Path(source_pdf).unlink(missing_ok=True)
 
-    if os.path.exists(source_pdf) and not has_timeout:
+    if os.path.exists(source_pdf) and not timed_out:
         try:
             shutil.move(source_pdf, pdf_file)
         except Exception:
