@@ -106,7 +106,7 @@ class HybridLiteratureAgent:
             f"🚀 Starting Fast Hybrid Literature Agent (Cutoff: {cutoff_date}, Threads: {self.max_workers})..."
         )
 
-        with open(outline_path, "r") as f:
+        with open(outline_path, "r", encoding="utf-8") as f:
             outline = json.load(f)
 
         outline_output_path = f"{self.output_dir}/outline_v1.json"
@@ -323,10 +323,20 @@ class HybridLiteratureAgent:
                 retry_count += 1
         return []
 
+    @staticmethod
+    def _cand_field(cand, field, default=None):
+        value = getattr(cand, field, None)
+        if value is None and isinstance(cand, dict):
+            value = cand.get(field)
+        return value if value is not None else default
+
     def _enrich_and_register_paper(self, cand, task, registry, cutoff_date):
-        cand_title = getattr(cand, "title", None) or cand.get("title")
-        cand_year = getattr(cand, "year", None) or cand.get("year")
-        cand_reason = getattr(cand, "reason", None) or cand.get("reason", "")
+        # The candidate list comes from LLM JSON, so entries may be malformed.
+        cand_title = self._cand_field(cand, "title")
+        if not isinstance(cand_title, str) or not cand_title.strip():
+            return
+        cand_year = self._cand_field(cand, "year")
+        cand_reason = self._cand_field(cand, "reason", "")
 
         norm_title = self._normalize_title(cand_title)
 
@@ -470,9 +480,15 @@ class HybridLiteratureAgent:
             },
         )
 
-        if response_dict["parsed_response"]:
-            return response_dict["parsed_response"].get("candidates", [])
-        return []
+        parsed = response_dict["parsed_response"]
+        if isinstance(parsed, dict):
+            candidates = parsed.get("candidates", [])
+        elif isinstance(parsed, list):
+            # Model returned the candidate list without the wrapper object.
+            candidates = parsed
+        else:
+            candidates = []
+        return [c for c in candidates if isinstance(c, dict)]
 
     def _synthesize_content(self, outline, papers: List[PaperData], cutoff_date: str):
         paper_keys = [p.citation_key for p in papers]
@@ -537,6 +553,26 @@ class HybridLiteratureAgent:
         title_part = "".join(meaningful[:2]) if meaningful else "Paper"
         return f"{clean_author}{year_str}{title_part}"
 
+    @staticmethod
+    def _bibtex_escape(value) -> str:
+        """Escape characters that break BibTeX/LaTeX when taken raw from S2 data."""
+        text = str(value) if value is not None else ""
+        text = re.sub(r"(?<!\\)([&%#_$])", r"\\\1", text)
+        # Unbalanced braces break the whole .bib file; drop them if unbalanced.
+        depth = 0
+        balanced = True
+        for ch in text:
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth < 0:
+                    balanced = False
+                    break
+        if not balanced or depth != 0:
+            text = text.replace("{", "").replace("}", "")
+        return text
+
     def _generate_bibtex(self, papers: List[PaperData]) -> str:
         entries = []
         seen_keys = set()
@@ -550,19 +586,22 @@ class HybridLiteratureAgent:
             p.citation_key = unique_key
             seen_keys.add(unique_key)
 
-            author_str = " and ".join(p.authors) if p.authors else "Unknown"
+            esc = self._bibtex_escape
+            author_str = (
+                " and ".join(esc(a) for a in p.authors) if p.authors else "Unknown"
+            )
             entry_type = "article" if p.journal else "inproceedings"
 
-            entry = f"@{entry_type}{{{p.citation_key},\n  title={{{p.title}}},\n  author={{{author_str}}},\n"
+            entry = f"@{entry_type}{{{p.citation_key},\n  title={{{esc(p.title)}}},\n  author={{{author_str}}},\n"
             if p.journal:
-                entry += f"  journal={{{p.journal}}},\n"
+                entry += f"  journal={{{esc(p.journal)}}},\n"
             else:
-                entry += f"  booktitle={{{p.venue}}},\n"
-            entry += f"  year={{{p.year}}}"
+                entry += f"  booktitle={{{esc(p.venue)}}},\n"
+            entry += f"  year={{{esc(p.year)}}}"
             if p.volume:
-                entry += f",\n  volume={{{p.volume}}}"
+                entry += f",\n  volume={{{esc(p.volume)}}}"
             if p.pages:
-                entry += f",\n  pages={{{p.pages}}}"
+                entry += f",\n  pages={{{esc(p.pages)}}}"
             entry += "\n}"
             entries.append(entry)
         return "\n\n".join(entries)
@@ -597,7 +636,7 @@ class HybridLiteratureAgent:
         loaded = {}
         for name, path in self.context_paths.items():
             if os.path.exists(path):
-                with open(path, "r") as f:
+                with open(path, "r", encoding="utf-8") as f:
                     loaded[name] = f.read()
             else:
                 loaded[name] = ""
