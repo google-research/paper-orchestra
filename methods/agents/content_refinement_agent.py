@@ -70,8 +70,8 @@ class ContentRefinementAgent:
         self.worklogs = {}
         self.format_worklogs = {}
         self.current_tex = ""
-        self.initial_score = 0
-        self.current_score = 0
+        self.initial_score = None
+        self.current_score = None
 
     def _read_file(self, path: str) -> str:
         try:
@@ -81,7 +81,9 @@ class ContentRefinementAgent:
             print(f" >> Warning: File not found at {path}")
             return ""
 
-    def _get_peer_review(self, pdf_path: str, iteration_label: str) -> dict:
+    def _get_peer_review(
+        self, pdf_path: str, iteration_label: str
+    ) -> tuple[dict, float | None]:
         """Helper to call the external reviewer."""
         print(f" >> [AgentReview] Generating feedback for {iteration_label} paper...")
         try:
@@ -92,7 +94,10 @@ class ContentRefinementAgent:
                 model_name=self.model_name,
             )
 
-            score = review.get("Overall", 0)
+            overall = review["Overall"]
+            score = float(overall)
+            if isinstance(overall, bool) or not 1 <= score <= 10:
+                raise ValueError("Review must provide an Overall score from 1 to 10")
             print(f" >> [Reviewer] Score for {iteration_label}: {score}/10")
 
             version_name = "v0" if iteration_label == "initial" else iteration_label
@@ -102,11 +107,11 @@ class ContentRefinementAgent:
             with open(review_path, "w", encoding="utf-8") as f:
                 json.dump(review, f, indent=4)
 
-            return review, float(score)
+            return review, score
         except Exception as e:
             print(f" >> [Reviewer] Error generating review: {e}")
             traceback.print_exc()
-            return {"Error": str(e), "Overall": 0}, 0.0
+            return {"Error": str(e)}, None
 
     def _get_formatting_review(self, pdf_path: str, iteration_label: str) -> dict:
         """Helper to call VLM for formatting feedback."""
@@ -246,7 +251,12 @@ Respond in JSON format with the following structure:
         final_valid_pdf_path = initial_pdf_path
 
         # --- Content Refinement Loop ---
-        for i in range(self.max_reflections):
+        reflection_rounds = self.max_reflections
+        if self.current_score is None:
+            print(" >> Baseline review unavailable. Skipping content refinement.")
+            reflection_rounds = 0
+
+        for i in range(reflection_rounds):
             print(f"\n=== Refinement Iteration {i+1}/{self.max_reflections} ===")
 
             cur_filename = f"refined_paper_v{i+1}"
@@ -332,6 +342,11 @@ INSTRUCTION:
                 pdf_to_grid_images(cur_pdf_path, screenshots_dir)
 
                 new_review, new_score = self._get_peer_review(cur_pdf_path, f"v{i+1}")
+                if new_score is None:
+                    print(
+                        " >> Candidate review unavailable. Keeping the last reviewed draft."
+                    )
+                    break
 
                 # --- COMPARISON LOGIC & METRICS EXTRACTION ---
                 old_metrics = self._extract_scores(current_peer_review)
