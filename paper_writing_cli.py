@@ -142,7 +142,7 @@ def main():
         from methods.paper_writer_with_plotting import write_single_paper
 
         print(f"🚀 Starting Paper Generation (WITH PLOTTING) in {base_dir}")
-        write_single_paper(
+        succeeded = write_single_paper(
             base_dir=base_dir,
             latex_template_dir=args.latex_template_dir,
             idea_filename=args.idea_filename,
@@ -161,7 +161,7 @@ def main():
         print(
             f"🚀 Starting Paper Generation (WITHOUT PLOTTING), with figures stored in {provided_figures_dir}"
         )
-        write_single_paper(
+        succeeded = write_single_paper(
             base_dir=base_dir,
             latex_template_dir=args.latex_template_dir,
             idea_filename=args.idea_filename,
@@ -171,6 +171,14 @@ def main():
             research_cutoff=args.research_cutoff,
         )
 
+    if not succeeded:
+        print(
+            "Paper generation failed. See the preceding logs for details.",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
