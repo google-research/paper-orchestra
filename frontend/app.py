@@ -410,6 +410,21 @@ def handle_live_execution(
                             with open(figure_path, "wb") as file_object:
                                 file_object.write(figure["file"].getvalue())
 
+                    # The section writer only sees figures listed in info.json.
+                    with open(
+                        os.path.join(figures_directory, "info.json"),
+                        "w",
+                        encoding="utf-8",
+                    ) as file_object:
+                        json.dump(
+                            [
+                                {"name": figure["name"], "caption": figure["caption"]}
+                                for figure in figures_list
+                            ],
+                            file_object,
+                            indent=4,
+                        )
+
                     process = subprocess.Popen(
                         execution_command,
                         stdout=subprocess.PIPE,
