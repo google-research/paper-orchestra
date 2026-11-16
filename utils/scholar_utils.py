@@ -18,7 +18,9 @@ import requests
 import time
 from typing import List, Dict, Union, Optional
 from thefuzz import fuzz  # type: ignore
-import datetime
+from datetime import date
+
+from utils.research_cutoff import parse_research_cutoff
 
 from dotenv import load_dotenv  # type: ignore
 
@@ -36,27 +38,7 @@ def s2_title_search(
 ) -> Optional[Dict]:
     headers = {"X-API-KEY": S2_API_KEY} if S2_API_KEY else {}
 
-    def is_date_valid(p_date, p_year, cutoff_str):
-        if not cutoff_str:
-            return True
-        try:
-            c_year, c_month = map(int, cutoff_str.split("-"))
-            cutoff_dt = datetime.datetime(c_year, c_month, 1)
-            if p_date:
-                try:
-                    p_dt = datetime.datetime.strptime(p_date, "%Y-%m-%d")
-                    return p_dt < cutoff_dt
-                except ValueError:
-                    pass
-            if p_year:
-                if p_year < c_year:
-                    return True
-                if p_year == c_year and c_month > 1:
-                    return True
-                return False
-            return True
-        except Exception:
-            return True
+    cutoff = parse_research_cutoff(cutoff_date) if cutoff_date else None
 
     try:
         rsp = requests.get(
@@ -81,7 +63,7 @@ def s2_title_search(
         for r in results:
             if not r.get("title"):
                 continue
-            if not is_date_valid(r.get("publicationDate"), r.get("year"), cutoff_date):
+            if cutoff and not _is_before_cutoff(r, cutoff):
                 continue
 
             ratio = fuzz.ratio(title_query.lower(), r["title"].lower())
@@ -98,3 +80,17 @@ def s2_title_search(
     except Exception as e:
         print(f"      ⚠️ S2 Error for '{title_query}': {e}")
         return None
+
+
+def _is_before_cutoff(paper: Dict, cutoff: date) -> bool:
+    if paper.get("publicationDate"):
+        try:
+            return date.fromisoformat(paper["publicationDate"]) < cutoff
+        except (ValueError, TypeError):
+            pass
+
+    year = paper.get("year")
+    if year:
+        # With year-only metadata, keep papers that could predate the cutoff.
+        return (int(year), 1, 1) < (cutoff.year, cutoff.month, cutoff.day)
+    return True
