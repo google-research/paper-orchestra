@@ -20,6 +20,11 @@ from datetime import datetime
 
 
 def main():
+    # Avoid UnicodeEncodeError when emoji/log output is redirected on Windows (cp1252).
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
     parser = argparse.ArgumentParser(
         description="CLI for generating a single paper from the Paper Orchestra pipeline."
     )

@@ -225,7 +225,7 @@ def _process_and_save_single_sxs(
 
     with FILE_LOCK:
         current_results_dict[paper_id] = result_entry
-        with open(output_json_path, "w") as f:
+        with open(output_json_path, "w", encoding="utf-8") as f:
             json.dump(current_results_dict, f, indent=4)
 
     print(
@@ -264,7 +264,7 @@ def perform_sxs_paper_quality_batch(
 
     current_results = {}
     if os.path.exists(output_json_path):
-        with open(output_json_path, "r") as f:
+        with open(output_json_path, "r", encoding="utf-8") as f:
             current_results = json.load(f)
 
     folder1_ids = [
@@ -381,7 +381,7 @@ def perform_sxs_paper_quality_batch(
 
     current_results["_summary_stats"] = stats
 
-    with open(output_json_path, "w") as f:
+    with open(output_json_path, "w", encoding="utf-8") as f:
         json.dump(current_results, f, indent=4)
 
     print("\n" + "=" * 50, flush=True)

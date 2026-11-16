@@ -118,7 +118,7 @@ def render_sidebar():
             examples_directory, "cvpr_example.json"
         )
         try:
-            with open(javascript_object_notation_path, "r") as file_object:
+            with open(javascript_object_notation_path, "r", encoding="utf-8") as file_object:
                 example_data = json.load(file_object)
             st.session_state.idea_text_main = example_data.get("idea", "")
             st.session_state.log_text_main = example_data.get("log", "")
@@ -232,7 +232,7 @@ def render_gallery_tab():
         )
         if os.path.exists(results_path):
             try:
-                with open(results_path, "r") as file_object:
+                with open(results_path, "r", encoding="utf-8") as file_object:
                     st.session_state.generated_figures = json.load(file_object)
             except Exception:
                 pass
@@ -254,7 +254,7 @@ def render_json_file(file_name, title, failure_message):
         file_path = os.path.join(st.session_state.run_directory, file_name)
         if os.path.exists(file_path):
             try:
-                with open(file_path, "r") as file_object:
+                with open(file_path, "r", encoding="utf-8") as file_object:
                     st.json(json.load(file_object))
             except Exception as exception_object:
                 st.error(f"Error loading {title.lower()}: {exception_object}")
@@ -392,13 +392,16 @@ def handle_live_execution(
                     os.makedirs(figures_directory, exist_ok=True)
 
                     with open(
-                        os.path.join(raw_materials_directory, "idea_sparse.md"), "w"
+                        os.path.join(raw_materials_directory, "idea_sparse.md"),
+                        "w",
+                        encoding="utf-8",
                     ) as file_object:
                         file_object.write(idea_content)
 
                     with open(
                         os.path.join(raw_materials_directory, "experimental_log.md"),
                         "w",
+                        encoding="utf-8",
                     ) as file_object:
                         file_object.write(log_content)
 
@@ -917,7 +920,7 @@ else:
 
             if os.path.exists(worklog_path):
                 try:
-                    with open(worklog_path, "r") as file_object:
+                    with open(worklog_path, "r", encoding="utf-8") as file_object:
                         worklog_data = json.load(file_object)
 
                     content_versions = list(worklog_data.keys())
@@ -986,7 +989,7 @@ else:
                         st.markdown("### Format Refinement")
 
                         format_iterations = []
-                        with open(format_worklog_path, "r") as file_object:
+                        with open(format_worklog_path, "r", encoding="utf-8") as file_object:
                             for version_key, entry in json.load(file_object).items():
                                 format_iterations.append(
                                     {

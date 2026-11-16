@@ -87,7 +87,7 @@ def parse_sections(json_data, output_folder=""):
         else:
             section_results[-1]["content"] += content
 
-    with open(output_path, "w") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(section_results, f, indent=4)
         print(f"Dumped paper sections to {output_path}.")
 

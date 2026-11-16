@@ -170,7 +170,7 @@ def write_single_paper(
                             {"name": clean_name, "caption": plot_obj.get("caption", "")}
                         )
 
-            with open(osp.join(figures_dir, "info.json"), "w") as f:
+            with open(osp.join(figures_dir, "info.json"), "w", encoding="utf-8") as f:
                 json.dump(figures_info, f, indent=4)
 
             # Copy literature agent outputs
@@ -237,7 +237,7 @@ def write_single_paper(
             time_log["ContentRefinementAgent"] = time.time() - _t3
             time_log["Total_Time_Span"] = time.time() - time_log["Start_Time_Absolute"]
 
-            with open(osp.join(base_dir, "time_breakdown.json"), "w") as f:
+            with open(osp.join(base_dir, "time_breakdown.json"), "w", encoding="utf-8") as f:
                 json.dump(time_log, f, indent=4)
 
             assert osp.exists(
@@ -376,7 +376,7 @@ def _load_papers_from_config(
             raise ValueError(
                 "Please provide paper_info_path if process_root_folder is False."
             )
-        with open(paper_info_path, "r") as f:
+        with open(paper_info_path, "r", encoding="utf-8") as f:
             all_papers_candidates = json.load(f)
 
     if n_papers < 0:
@@ -392,7 +392,7 @@ def _load_logs(output_dir: str):
     paper_writing_log_path = osp.join(output_dir, "paper_writing_log.json")
     write_log = {}
     if osp.exists(paper_writing_log_path):
-        with open(paper_writing_log_path, "r") as f:
+        with open(paper_writing_log_path, "r", encoding="utf-8") as f:
             write_log = json.load(f)
         print(f"Loaded existing writing log with {len(write_log)} entries.")
 
@@ -496,7 +496,7 @@ def run_batch_writeup(
                     "paper_path": result.get("paper_path", ""),
                 }
 
-                with open(paper_writing_log_path, "w") as f:
+                with open(paper_writing_log_path, "w", encoding="utf-8") as f:
                     json.dump(write_log, f, indent=4)
 
             except Exception as e:
