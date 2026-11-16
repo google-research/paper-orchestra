@@ -804,7 +804,14 @@ else:
                 st.session_state.run_directory, "latex_writeup"
             )
 
-            if os.path.exists(pdf_path) or os.path.exists(latex_directory):
+            final_tex = os.path.join(
+                st.session_state.run_directory,
+                "content_refinement_workdir",
+                "final_refined_paper.tex",
+            )
+            has_final_tex = os.path.isfile(final_tex)
+
+            if os.path.exists(pdf_path) or os.path.isdir(latex_directory):
                 st.markdown("### 📥 Download Results")
                 column_download_1, column_download_2 = st.columns(2)
 
@@ -819,24 +826,40 @@ else:
                                 key="download_final_pdf_tab",
                             )
 
-                if os.path.exists(latex_directory):
+                if os.path.isdir(latex_directory):
                     zip_buffer = io.BytesIO()
                     with zipfile.ZipFile(
-                        zip_buffer, "a", zipfile.ZIP_DEFLATED, False
+                        zip_buffer, "w", zipfile.ZIP_DEFLATED
                     ) as zip_file:
-                        for root, directories, files in os.walk(latex_directory):
+                        for root, _, files in os.walk(latex_directory):
                             for file in files:
                                 file_path = os.path.join(root, file)
                                 archive_name = os.path.relpath(
                                     file_path, latex_directory
                                 )
+                                if has_final_tex and archive_name in {
+                                    "main.tex",
+                                    "template.tex",
+                                    "raw_draft_paper.tex",
+                                }:
+                                    continue
                                 zip_file.write(file_path, archive_name)
+                        if has_final_tex:
+                            zip_file.write(final_tex, "main.tex")
 
                     with column_download_2:
                         st.download_button(
-                            label="📦 Download LaTeX Source",
+                            label=(
+                                "📦 Download LaTeX Source"
+                                if has_final_tex
+                                else "📦 Download Draft LaTeX Source"
+                            ),
                             data=zip_buffer.getvalue(),
-                            file_name="latex_source.zip",
+                            file_name=(
+                                "latex_source.zip"
+                                if has_final_tex
+                                else "latex_draft_source.zip"
+                            ),
                             mime="application/zip",
                             key="download_final_latex_tab",
                         )
