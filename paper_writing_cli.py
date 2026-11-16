@@ -72,6 +72,8 @@ def main():
     parser.add_argument(
         "--use_plotting",
         type=lambda x: (str(x).lower() in ["true", "1", "yes"]),
+        nargs="?",
+        const=True,  # allow a bare `--use_plotting`, as the help text suggests
         default=False,
         help="Enable plotting agent workflow to generate figures from code.",
     )

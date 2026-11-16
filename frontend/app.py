@@ -376,11 +376,18 @@ def handle_live_execution(
                 figures_list,
             ):
                 try:
-                    libc = ctypes.CDLL(None)
-                    process_set_parent_death_signal = 1
+                    # prctl(PR_SET_PDEATHSIG) only exists on Linux. On Windows,
+                    # ctypes.CDLL(None) raises and preexec_fn is unsupported, and
+                    # macOS has no prctl, so only use it on Linux.
+                    popen_kwargs = {}
+                    if sys.platform.startswith("linux"):
+                        libc = ctypes.CDLL(None)
+                        process_set_parent_death_signal = 1
 
-                    def set_death_signal():
-                        libc.prctl(process_set_parent_death_signal, signal.SIGKILL)
+                        def set_death_signal():
+                            libc.prctl(process_set_parent_death_signal, signal.SIGKILL)
+
+                        popen_kwargs["preexec_fn"] = set_death_signal
 
                     os.makedirs(run_directory, exist_ok=True)
                     raw_materials_directory = os.path.join(
@@ -418,8 +425,10 @@ def handle_live_execution(
                         stdout=subprocess.PIPE,
                         stderr=subprocess.STDOUT,
                         text=True,
+                        encoding="utf-8",
+                        errors="replace",
                         cwd=working_directory,
-                        preexec_fn=set_death_signal,
+                        **popen_kwargs,
                     )
 
                     current_step_name = steps_list[0]
@@ -516,11 +525,15 @@ def handle_live_execution(
                                         "Content Refinement"
                                     ] += f"\n❌ Error preparing latex zip: {e}"
 
-                            send_notification_email(
+                            email_ok, email_msg = send_notification_email(
                                 recipient_email,
                                 "Generated Paper",
                                 attachments=attachments,
                             )
+                            if not email_ok:
+                                st.session_state.logs[
+                                    "Content Refinement"
+                                ] += f"\n❌ Failed to send notification email: {email_msg}"
                 except Exception as exception_object:
                     st.session_state.logs[
                         "Content Refinement"
@@ -528,6 +541,9 @@ def handle_live_execution(
                 finally:
                     st.session_state.running = False
                     st.session_state.thread_started = False
+                    # Unlock the inputs so a new run can be started.
+                    st.session_state.locked = False
+                    st.session_state.hide_inputs = False
 
             worker_thread = threading.Thread(
                 target=run_pipeline,
