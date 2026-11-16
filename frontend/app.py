@@ -239,13 +239,18 @@ def render_gallery_tab():
 
     if st.session_state.get("generated_figures"):
         for figure in st.session_state.generated_figures:
-            image_path = os.path.join(
-                st.session_state.run_directory, figure.get("image_path", "")
+            st.markdown(f"**{figure.get('title', 'Figure')}**")
+            image_name = figure.get("image_path")
+            image_path = (
+                os.path.join(st.session_state.run_directory, image_name)
+                if image_name
+                else None
             )
-            if os.path.exists(image_path):
-                st.markdown(f"**{figure.get('title', 'Figure')}**")
+            if image_path and os.path.isfile(image_path):
                 st.image(image_path, caption=figure.get("caption", ""))
-                st.markdown("<hr>", unsafe_allow_html=True)
+            else:
+                st.caption("No image is available for this figure.")
+            st.markdown("<hr>", unsafe_allow_html=True)
 
 
 def render_json_file(file_name, title, failure_message):
