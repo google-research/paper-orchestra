@@ -915,10 +915,17 @@ else:
                             "download_content_0",
                         )
 
-            if os.path.exists(worklog_path):
+            format_worklog_path = os.path.join(
+                st.session_state.run_directory,
+                "content_refinement_workdir",
+                "format_refinement_worklog.json",
+            )
+            if os.path.exists(worklog_path) or os.path.exists(format_worklog_path):
                 try:
-                    with open(worklog_path, "r") as file_object:
-                        worklog_data = json.load(file_object)
+                    worklog_data = {}
+                    if os.path.exists(worklog_path):
+                        with open(worklog_path, "r") as file_object:
+                            worklog_data = json.load(file_object)
 
                     content_versions = list(worklog_data.keys())
 
@@ -960,24 +967,24 @@ else:
                                     f"download_content_{version_key}",
                                 )
 
-                    final_selected_version = next(
+                    selected_content_round = max(
                         (
-                            f"V{entry['round']}"
+                            entry["round"]
                             for entry in worklog_data.values()
                             if entry.get("outcome")
-                            in [
+                            in {
                                 "ACCEPTED_SCORE_INCREASE",
                                 "ACCEPTED_NEUTRAL_IMPROVEMENT",
-                            ]
+                            }
                         ),
-                        "V0 (Initial)",
+                        default=0,
+                    )
+                    final_selected_version = (
+                        f"V{selected_content_round}"
+                        if selected_content_round
+                        else "V0 (Initial)"
                     )
 
-                    format_worklog_path = os.path.join(
-                        st.session_state.run_directory,
-                        "content_refinement_workdir",
-                        "format_refinement_worklog.json",
-                    )
                     if os.path.exists(format_worklog_path):
                         st.info(
                             f"💡 `Content Refinement {final_selected_version}` is selected at the output of the content refinement phase, now move on to formatting refinement..."
@@ -991,6 +998,7 @@ else:
                                 format_iterations.append(
                                     {
                                         "iteration": int(version_key[1:]),
+                                        "outcome": entry.get("outcome"),
                                         "feedback": entry.get(
                                             "formatting_feedback", {}
                                         ),
@@ -1016,8 +1024,8 @@ else:
                                 st.write("Input from content refinement phase.")
                                 source_pdf_name = (
                                     "initial_draft.pdf"
-                                    if final_selected_version == "V0 (Initial)"
-                                    else f"refined_paper_v{final_selected_version[1:]}.pdf"
+                                    if selected_content_round == 0
+                                    else f"refined_paper_v{selected_content_round}.pdf"
                                 )
                                 pdf_path = os.path.join(
                                     st.session_state.run_directory,
@@ -1056,17 +1064,22 @@ else:
                                 "final_refined_paper.pdf",
                             )
                         ):
-                            if format_iterations:
-                                max_iter = max(
-                                    entry["iteration"] for entry in format_iterations
-                                )
-                                st.info(
-                                    f"💡 `Format Refinement V{max_iter}` is selected as the final output of this pipeline."
-                                )
-                            else:
-                                st.info(
-                                    "💡 `final_refined_paper.pdf` is selected as the final output of this pipeline."
-                                )
+                            selected_format_round = max(
+                                (
+                                    entry["iteration"]
+                                    for entry in format_iterations
+                                    if entry["outcome"] == "ACCEPTED_COMPILE_SUCCESS"
+                                ),
+                                default=0,
+                            )
+                            selected_format_version = (
+                                f"V{selected_format_round}"
+                                if selected_format_round
+                                else "V0 (Initial)"
+                            )
+                            st.info(
+                                f"💡 `Format Refinement {selected_format_version}` is selected as the final output of this pipeline."
+                            )
                         else:
                             st.info(
                                 "💡 Refinement pipeline ended without producing a final separated PDF."
