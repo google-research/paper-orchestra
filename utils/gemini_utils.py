@@ -123,7 +123,7 @@ def parse_gemini_latex_results(response: str):
     return latex_string
 
 
-def parse_gemini_json_latex_response(response_text: str) -> Dict[str, Any]:
+def parse_gemini_json_latex_response(response_text: str) -> str | None:
     """
     Extracts the JSON worklog and the LaTeX code from the LLM response.
     Expected format:
@@ -136,7 +136,12 @@ def parse_gemini_json_latex_response(response_text: str) -> Dict[str, Any]:
       ...
       ```
     """
-    result = {"json": None, "latex": None}
+    latex_match = re.search(r"```latex\s*(.*?)\s*```", response_text, re.DOTALL)
+    if not latex_match or not latex_match.group(1).strip():
+        print(" >> Warning: No LaTeX content found in the response.")
+        return None
+
+    result = {"json": None, "latex": latex_match.group(1)}
 
     json_match = re.search(r"```json\s*(.*?)\s*```", response_text, re.DOTALL)
     if json_match:
@@ -145,12 +150,6 @@ def parse_gemini_json_latex_response(response_text: str) -> Dict[str, Any]:
         except json.JSONDecodeError:
             print(" >> Error: Failed to parse JSON worklog from response.")
             result["json"] = {"error": "Invalid JSON format returned"}
-
-    latex_match = re.search(r"```latex\s*(.*?)\s*```", response_text, re.DOTALL)
-    if latex_match:
-        result["latex"] = latex_match.group(1)
-    else:
-        print(" >> Warning: No ```latex``` block found.")
 
     return json.dumps(result)
 
