@@ -46,9 +46,9 @@ def load_md_file(md_file_path: str):
         print(
             f"Error! Markdown file not found at '{md_file_path}', use empty string..."
         )
-        return None
+        return ""
 
-    with open(md_file_path, "r") as f:
+    with open(md_file_path, "r", encoding="utf-8") as f:
         prompt_content = f.read()
 
     return prompt_content

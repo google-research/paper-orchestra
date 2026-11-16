@@ -20,6 +20,11 @@ from datetime import datetime
 
 
 def main():
+    # Avoid UnicodeEncodeError when emoji/log output is redirected on Windows (cp1252).
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
     parser = argparse.ArgumentParser(
         description="CLI for generating a single paper from the Paper Orchestra pipeline."
     )
@@ -67,6 +72,8 @@ def main():
     parser.add_argument(
         "--use_plotting",
         type=lambda x: (str(x).lower() in ["true", "1", "yes"]),
+        nargs="?",
+        const=True,  # allow a bare `--use_plotting`, as the help text suggests
         default=False,
         help="Enable plotting agent workflow to generate figures from code.",
     )

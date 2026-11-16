@@ -208,13 +208,18 @@ def process_paper_task(
     experimental_log_filename,
     writer_model_name,
     research_cutoff,
+    reflection_model_name="gemini-3.1-pro-preview",
 ):
     """
     Worker function to process a single paper.
     Returns a dictionary with results to be handled by the main thread.
     """
     try:
-        paper_id = paper["paper_id"]
+        paper_id = str(paper["paper_id"]).strip()
+        # paper_id is joined into a path that is later rmtree'd: an empty or
+        # path-like id would delete output_dir itself or its parent.
+        if not paper_id or paper_id in (".", "..") or osp.basename(paper_id) != paper_id:
+            raise ValueError(f"Invalid paper_id {paper['paper_id']!r}")
         print(f"Starting processing for paper '{paper_id}'...")
 
         paper_dest_dir = osp.join(output_dir, paper_id)
@@ -251,6 +256,7 @@ def process_paper_task(
                 idea_filename=idea_filename,
                 experimental_log_filename=experimental_log_filename,
                 writer_model_name=writer_model_name,
+                reflection_model_name=reflection_model_name,
                 research_cutoff=research_cutoff,
             )
 
@@ -305,7 +311,7 @@ def _load_papers_from_config(
             raise ValueError(
                 "Please provide paper_info_path if process_root_folder is False."
             )
-        with open(paper_info_path, "r") as f:
+        with open(paper_info_path, "r", encoding="utf-8") as f:
             all_papers_candidates = json.load(f)
 
     if n_papers < 0:
@@ -321,7 +327,7 @@ def _load_logs(output_dir: str):
     paper_writing_log_path = osp.join(output_dir, "paper_writing_log.json")
     write_log = {}
     if osp.exists(paper_writing_log_path):
-        with open(paper_writing_log_path, "r") as f:
+        with open(paper_writing_log_path, "r", encoding="utf-8") as f:
             write_log = json.load(f)
         print(f"Loaded existing writing log with {len(write_log)} entries.")
 
@@ -370,6 +376,7 @@ def run_batch_writeup(
     research_cutoff: str = "2024-11",
     n_papers=-1,
     max_workers=4,
+    reflection_model_name: str = "gemini-3.1-pro-preview",
 ):
     if output_dir == "":
         output_dir = create_log_folder(prefix=output_dir_prefix, date_str=date_str)
@@ -403,6 +410,7 @@ def run_batch_writeup(
                 experimental_log_filename,
                 writer_model_name,
                 research_cutoff,
+                reflection_model_name,
             ): paper["paper_id"]
             for paper in papers_to_process
         }
@@ -419,7 +427,7 @@ def run_batch_writeup(
                     "paper_path": result.get("paper_path", ""),
                 }
 
-                with open(paper_writing_log_path, "w") as f:
+                with open(paper_writing_log_path, "w", encoding="utf-8") as f:
                     json.dump(write_log, f, indent=4)
 
             except Exception as e:
