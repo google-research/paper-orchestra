@@ -281,15 +281,24 @@ def perform_sxs_paper_quality_batch(
     )
 
     common_ids = []
+    rated_ids = []
     for pid in folder1_ids:
         if pid in folder2_ids:
             p1 = os.path.join(project_folder_1, pid, rel_path_1)
             p2 = os.path.join(project_folder_2, pid, rel_path_2)
             if os.path.exists(p1) and os.path.exists(p2):
-                if pid not in current_results:
-                    common_ids.append((pid, p1, p2))
-                else:
+                cached_result = current_results.get(pid)
+                if (
+                    isinstance(cached_result, dict)
+                    and cached_result.get("paper_1_path") == p1
+                    and cached_result.get("paper_2_path") == p2
+                    and "category_5pt" in cached_result
+                    and "category_3pt" in cached_result
+                ):
+                    rated_ids.append(pid)
                     print(f"[{pid}] Already rated. Skipping.", flush=True)
+                else:
+                    common_ids.append((pid, p1, p2))
 
     print(f"Found {len(common_ids)} overlapping papers to evaluate.", flush=True)
 
@@ -311,7 +320,9 @@ def perform_sxs_paper_quality_batch(
             futures.append(f)
 
         for future in as_completed(futures):
-            future.result()
+            pid, success = future.result()
+            if success:
+                rated_ids.append(pid)
 
     wins_5pt = 0
     leaning_wins_5pt = 0
@@ -325,12 +336,8 @@ def perform_sxs_paper_quality_batch(
 
     valid_evals = 0
 
-    for pid, res in current_results.items():
-        if pid == "_summary_stats":
-            continue
-        if not isinstance(res, dict) or "category_5pt" not in res:
-            continue
-
+    for pid in rated_ids:
+        res = current_results[pid]
         cat_5 = res["category_5pt"]
         cat_3 = res["category_3pt"]
 
