@@ -15,6 +15,7 @@
 import os
 import json
 import base64
+import re
 import concurrent.futures
 
 from utils.common_utils import load_md_file
@@ -253,9 +254,18 @@ class PlottingAgent:
             figures_dir = os.path.join(output_dir, "figures")
             os.makedirs(figures_dir, exist_ok=True)
 
-            for res in results:
+            used_ids = set()
+            for idx, res in enumerate(results):
                 if res.get("base64_img"):
-                    fig_id_clean = res["figure_id"].replace(" ", "_").lower()
+                    raw_id = str(res.get("figure_id") or f"figure_{idx + 1}")
+                    fig_id_clean = re.sub(r"[^\w\-]+", "_", raw_id).strip("_").lower()
+                    fig_id_clean = fig_id_clean or f"figure_{idx + 1}"
+                    # Avoid two figures overwriting each other's file.
+                    base_id, suffix = fig_id_clean, 2
+                    while fig_id_clean in used_ids:
+                        fig_id_clean = f"{base_id}_{suffix}"
+                        suffix += 1
+                    used_ids.add(fig_id_clean)
                     img_path = os.path.join(figures_dir, f"{fig_id_clean}.jpg")
                     try:
                         with open(img_path, "wb") as fh:

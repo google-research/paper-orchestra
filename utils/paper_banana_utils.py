@@ -17,6 +17,10 @@ import io
 import re
 import os
 import json
+import threading
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import json_repair
 from typing import Dict, Any, List, Tuple
@@ -289,7 +293,17 @@ Provide your response strictly in the following JSON format.
 # ==========================================
 
 
+# pyplot keeps global state (current figure, rcParams), so concurrent figure
+# workers must not execute plotting code at the same time.
+_PLOT_EXEC_LOCK = threading.Lock()
+
+
 def execute_plot_code_worker(code_text: str) -> str:
+    with _PLOT_EXEC_LOCK:
+        return _execute_plot_code_unlocked(code_text)
+
+
+def _execute_plot_code_unlocked(code_text: str) -> str:
     """
     Independent plot code execution worker:
     1. Extract code
@@ -299,17 +313,18 @@ def execute_plot_code_worker(code_text: str) -> str:
     match = re.search(r"```python(.*?)```", code_text, re.DOTALL)
     code_clean = match.group(1).strip() if match else code_text.strip()
 
-    plt.switch_backend("Agg")
     plt.close("all")
     plt.rcdefaults()
 
+    # Generated code may call plt.show(); make it a no-op so it cannot block.
+    original_show = plt.show
+    plt.show = lambda *args, **kwargs: None
     try:
-        exec_globals = {}
+        exec_globals = {"__name__": "__plot_worker__"}
         exec(code_clean, exec_globals)
         if plt.get_fignums():
             buf = io.BytesIO()
             plt.savefig(buf, format="jpeg", bbox_inches="tight", dpi=300)
-            plt.close("all")
 
             buf.seek(0)
             img_bytes = buf.read()
@@ -320,6 +335,9 @@ def execute_plot_code_worker(code_text: str) -> str:
     except Exception as e:
         print(f"Error executing plot code: {e}")
         return None
+    finally:
+        plt.show = original_show
+        plt.close("all")
 
 
 def identity_parse(response: str):
