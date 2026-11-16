@@ -17,6 +17,7 @@ import os
 import re
 import datetime
 import threading
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Optional, Dict
 from pydantic import BaseModel
@@ -604,4 +605,9 @@ class HybridLiteratureAgent:
         return loaded
 
     def _normalize_title(self, title):
-        return re.sub(r"[^a-z0-9]", "", title.lower())
+        normalized = unicodedata.normalize("NFC", title.casefold())
+        letters_and_numbers = "".join(
+            char for char in normalized
+            if unicodedata.category(char)[0] in {"L", "M", "N"}
+        )
+        return letters_and_numbers or normalized.strip()
