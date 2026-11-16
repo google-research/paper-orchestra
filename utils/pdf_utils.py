@@ -166,7 +166,7 @@ def get_paper_references_from_pdf(
     return None
 
 
-def compile_latex(cwd, pdf_file, texfile_name="template", timeout=30):
+def compile_latex(cwd, pdf_file, texfile_name="template", timeout=120):
     import os, shutil, subprocess, traceback, rich
 
     source_pdf = os.path.join(cwd, f"{texfile_name}.pdf")
@@ -219,6 +219,16 @@ def compile_latex(cwd, pdf_file, texfile_name="template", timeout=30):
     )
 
     if os.path.exists(source_pdf) and not has_timeout:
+        # nonstopmode still writes a PDF after LaTeX/BibTeX errors, so report
+        # failing steps instead of silently treating the PDF as clean.
+        failed_steps = [
+            log["cmd"] for log in execution_logs if log.get("returncode", 0) != 0
+        ]
+        if failed_steps:
+            rich.print(
+                f"[bold yellow]⚠️ PDF produced, but these steps reported errors: "
+                f"{', '.join(failed_steps)}[/bold yellow]"
+            )
         try:
             shutil.move(source_pdf, pdf_file)
         except Exception:
@@ -275,10 +285,21 @@ def pdf_to_grid_images(pdf_path, output_dir, scale=2.0):
             )
             img_list.append(img)
 
+        # Pages can differ in size/orientation (e.g. a landscape appendix page),
+        # which made np.hstack raise. Pad every tile to the largest page size.
+        max_h = max(img.shape[0] for img in img_list)
+        max_w = max(img.shape[1] for img in img_list)
+        n_ch = 3
+        padded = []
+        for img in img_list:
+            img = img[:, :, :3] if img.shape[2] >= 3 else np.repeat(img, 3, axis=2)
+            canvas = np.full((max_h, max_w, n_ch), 255, dtype=np.uint8)
+            canvas[: img.shape[0], : img.shape[1]] = img
+            padded.append(canvas)
+        img_list = padded
+
         while len(img_list) < 4:
-            ref_img = img_list[0]
-            white_img = np.ones_like(ref_img) * 255
-            img_list.append(white_img)
+            img_list.append(np.full((max_h, max_w, n_ch), 255, dtype=np.uint8))
 
         row1 = np.hstack((img_list[0], img_list[1]))
         row2 = np.hstack((img_list[2], img_list[3]))
