@@ -142,10 +142,16 @@ Here is the paper you are asked to review:
                     "system_instruction": reviewer_system_prompt,
                 },
             )
-            parsed_reviews.append(response["parsed_response"])
+            parsed_review = response["parsed_response"]
+            if isinstance(parsed_review, dict) and parsed_review:
+                parsed_reviews.append(parsed_review)
+            else:
+                print(f"Skipping malformed reviewer response {i + 1}.")
+        if not parsed_reviews:
+            raise ValueError("No valid reviewer responses")
         review = get_meta_review(model_name, temperature, parsed_reviews)
-        if review is None:
-            review = parsed_reviews[0]
+        if not isinstance(review, dict) or not review:
+            review = parsed_reviews[0].copy()
         for score, limits in [
             ("Originality", (1, 4)),
             ("Quality", (1, 4)),
