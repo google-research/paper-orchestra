@@ -101,19 +101,27 @@ class ReferenceF1V1Evaluator:
         ]
 
         # Parallel extraction of titles from citation strings
+        def _safe_extract(ref):
+            try:
+                return extract_paper_title_from_citation(ref)
+            except Exception as e:
+                print(f"Title extraction failed for citation ({e}); skipping it.")
+                return None
+
         cleaned_titles = Parallel(n_jobs=10, backend="threading")(
-            delayed(extract_paper_title_from_citation)(ref)
+            delayed(_safe_extract)(ref)
             for ref in tqdm(cleaned_refs, desc="Extracting Titles from Text")
         )
 
         return cleaned_refs, cleaned_titles
 
-    def _fetch_paper_id(self, paper_title: str) -> dict:
+    def _fetch_paper_id(self, paper_title: str, _attempt: int = 0) -> dict:
         """
         Queries Semantic Scholar with the raw citation string to find a Unique ID (paperId).
         """
         if not paper_title:
             return None
+        max_rate_limit_retries = 6
 
         params = {"query": paper_title, "limit": 1, "fields": "paperId,title"}
 
@@ -130,9 +138,13 @@ class ReferenceF1V1Evaluator:
                         "fetched_paper_title": data["data"][0]["title"],
                     }
             elif response.status_code == 429:
-                print("Rate limit hit. Sleeping for 2 seconds...")
-                time.sleep(2)
-                return self._fetch_paper_id(paper_title)
+                if _attempt >= max_rate_limit_retries:
+                    print(f"Rate limit persisted; giving up on ref: {paper_title}")
+                    return None
+                delay = min(2 ** (_attempt + 1), 30)
+                print(f"Rate limit hit. Sleeping for {delay} seconds...")
+                time.sleep(delay)
+                return self._fetch_paper_id(paper_title, _attempt + 1)
 
         except Exception as e:
             print(f"Error fetching ID for ref: {paper_title}... -> {e}")
@@ -211,11 +223,15 @@ class ReferenceF1V1Evaluator:
         )
 
         priorities = {}
+        priorities_ok = paper_text is None
         if paper_text is not None:
             print("Calling LLM to classify citation priorities...")
             # Map 1-indexed strictly to the extracted ref_list length
             start_llm = time.time()
             priorities = self._get_citation_priorities(paper_text, ref_list)
+            if not isinstance(priorities, dict):
+                priorities = {}
+            priorities_ok = bool(priorities)
             end_llm = time.time()
             print(f"Finished Calling LLM. Took {end_llm - start_llm:.2f} seconds.")
 
@@ -257,6 +273,7 @@ class ReferenceF1V1Evaluator:
             "p0_ids_count": len(p0_ids),
             "p1_ids": list(p1_ids),
             "p1_ids_count": len(p1_ids),
+            "priorities_ok": priorities_ok,
         }
 
     def evaluate_from_data(self, gt_data: Dict, gen_data: Dict) -> Dict:
@@ -324,17 +341,22 @@ class ReferenceF1V1Evaluator:
         tp_p1 = len(gen_ids_all.intersection(gt_ids_p1))
 
         overall_precision = tp_overall / gen_count if gen_count > 0 else 0.0
-        overall_recall = tp_overall / gt_count if gt_count > 0 else 0.0
-        overall_f1 = (
-            2
-            * (overall_precision * overall_recall)
-            / (overall_precision + overall_recall)
-            if (overall_precision + overall_recall) > 0
-            else 0.0
-        )
+        # Recall is undefined (None) when the GT set is empty; it is excluded
+        # from averages rather than counted as 0.
+        overall_recall = tp_overall / gt_count if gt_count > 0 else None
+        if overall_recall is None:
+            overall_f1 = None
+        elif (overall_precision + overall_recall) > 0:
+            overall_f1 = (
+                2
+                * (overall_precision * overall_recall)
+                / (overall_precision + overall_recall)
+            )
+        else:
+            overall_f1 = 0.0
 
-        p0_recall = tp_p0 / gt_p0_count if gt_p0_count > 0 else 0.0
-        p1_recall = tp_p1 / gt_p1_count if gt_p1_count > 0 else 0.0
+        p0_recall = tp_p0 / gt_p0_count if gt_p0_count > 0 else None
+        p1_recall = tp_p1 / gt_p1_count if gt_p1_count > 0 else None
 
         metrics_dict = {
             "overall_precision": overall_precision,
@@ -394,9 +416,10 @@ def get_citation_f1_metrics(
         gt_references_text = get_paper_references_from_pdf(
             original_pdf, model_name=model_name
         )
-        if gt_references_text is None:
-            print("Error: Could not extract text from GT PDF.")
-            gt_references_text = ""
+        if not gt_references_text:
+            # Fail this paper instead of caching an empty GT, which would score
+            # recall/F1 = 0 on every future run.
+            raise RuntimeError(f"Could not extract references from GT PDF {original_pdf}")
 
         print(f"Loading full paper text for LLM citation categorization...")
         paper_text = load_paper(
@@ -407,12 +430,20 @@ def get_citation_f1_metrics(
             gt_references_text, tag="gt", paper_text=paper_text
         )
 
-        try:
-            with open(gt_cache_path, "w", encoding="utf-8") as f:
-                json.dump(gt_data, f, indent=4)
-            print(f"Cached Ground Truth references to: {gt_cache_path}")
-        except Exception as e:
-            print(f"Warning: Could not write GT cache file. {e}")
+        if gt_data.get("all_ids_count", 0) == 0 or not gt_data.get(
+            "priorities_ok", True
+        ):
+            print(
+                "Warning: GT extraction or P0/P1 classification looks incomplete; "
+                "not caching it so the next run retries."
+            )
+        else:
+            try:
+                with open(gt_cache_path, "w", encoding="utf-8") as f:
+                    json.dump(gt_data, f, indent=4)
+                print(f"Cached Ground Truth references to: {gt_cache_path}")
+            except Exception as e:
+                print(f"Warning: Could not write GT cache file. {e}")
 
     # --- 2. Handle Generated PDF (Always Process) ---
     print(f"Processing Generated PDF: {generated_pdf}")
@@ -428,14 +459,17 @@ def get_citation_f1_metrics(
     # --- 3. Compare ---
     results = evaluator.evaluate_from_data(gt_data, gen_data)
 
+    def _fmt(value):
+        return "n/a" if value is None else f"{value:.2f}"
+
     print(f"\n--- Overall Metrics ---")
-    print(f"Overall Precision: {results['overall_precision']:.2f}")
-    print(f"Overall Recall:    {results['overall_recall']:.2f}")
-    print(f"Overall F1 Score:  {results['overall_f1']:.2f}")
+    print(f"Overall Precision: {_fmt(results['overall_precision'])}")
+    print(f"Overall Recall:    {_fmt(results['overall_recall'])}")
+    print(f"Overall F1 Score:  {_fmt(results['overall_f1'])}")
 
     print(f"\n--- Priority Recall Metrics ---")
-    print(f"P0 Recall:         {results['p0_recall']:.2f}")
-    print(f"P1 Recall:         {results['p1_recall']:.2f}")
+    print(f"P0 Recall:         {_fmt(results['p0_recall'])}")
+    print(f"P1 Recall:         {_fmt(results['p1_recall'])}")
 
     return results
 
@@ -715,11 +749,11 @@ def review_citation_f1_batch(
             if not os.path.exists(original_pdf_path):
                 if "cvpr2025" in project_folder.lower():
                     original_pdf_path = os.path.join(
-                        DATASET_DIR, "cvpr2025/papers/{paper_id}/{paper_id}.pdf"
+                        DATASET_DIR, f"cvpr2025/papers/{paper_id}/{paper_id}.pdf"
                     )
                 elif "iclr2025" in project_folder.lower():
                     original_pdf_path = os.path.join(
-                        DATASET_DIR, "iclr2025/papers/{paper_id}/{paper_id}.pdf"
+                        DATASET_DIR, f"iclr2025/papers/{paper_id}/{paper_id}.pdf"
                     )
                 else:
                     raise ValueError(f"Unknown dataset: {project_folder}")
@@ -806,6 +840,7 @@ def analyze_citation_metrics(json_file_path: str):
     ]
 
     sums = {key: 0.0 for key in score_keys}
+    score_counts = {key: 0 for key in score_keys}
     count_sums = {key: 0.0 for key in count_keys}
 
     valid_papers_count = 0
@@ -823,7 +858,11 @@ def analyze_citation_metrics(json_file_path: str):
         valid_papers_count += 1
 
         for key in score_keys:
-            sums[key] += metrics.get(key, 0.0)
+            value = metrics.get(key)
+            if value is None:
+                continue  # undefined for this paper (e.g. no P0 references)
+            sums[key] += value
+            score_counts[key] += 1
 
         counts_dict = metrics.get("counts", {})
         for key in count_keys:
@@ -842,9 +881,9 @@ def analyze_citation_metrics(json_file_path: str):
     overall_metrics = {}
 
     for key in score_keys:
-        avg = sums[key] / valid_papers_count
+        avg = sums[key] / score_counts[key] if score_counts[key] else float("nan")
         label = key.replace("_", " ").title()
-        print(f"{label:<30} | {avg:.4f}")
+        print(f"{label:<30} | {avg:.4f}  (n={score_counts[key]})")
         overall_metrics[key] = avg
 
     print("-" * 60)
