@@ -27,8 +27,8 @@ def send_notification_email(recipient_email, paper_name, attachments=None):
     sender_email = os.getenv("SMTP_EMAIL")
     sender_password = os.getenv("SMTP_PASSWORD")
 
-    if not sender_password:
-        return False, "SMTP password not configured."
+    if not sender_email or not sender_password:
+        return False, "SMTP_EMAIL / SMTP_PASSWORD not configured."
 
     try:
         msg = MIMEMultipart()
