@@ -170,8 +170,9 @@ def _process_and_save_single_sxs(
         )
         return paper_id, False
 
-    winner1 = rating1.get("winner", "").lower() if isinstance(rating1, dict) else ""
-    winner2 = rating2.get("winner", "").lower() if isinstance(rating2, dict) else ""
+    # str(... or "") guards against "winner": null / non-string values.
+    winner1 = str(rating1.get("winner") or "").lower() if isinstance(rating1, dict) else ""
+    winner2 = str(rating2.get("winner") or "").lower() if isinstance(rating2, dict) else ""
 
     r1_result = "tie"
     if "paper_1" in winner1 or "paper 1" in winner1:
@@ -225,7 +226,7 @@ def _process_and_save_single_sxs(
 
     with FILE_LOCK:
         current_results_dict[paper_id] = result_entry
-        with open(output_json_path, "w") as f:
+        with open(output_json_path, "w", encoding="utf-8") as f:
             json.dump(current_results_dict, f, indent=4)
 
     print(
@@ -264,7 +265,7 @@ def perform_sxs_paper_quality_batch(
 
     current_results = {}
     if os.path.exists(output_json_path):
-        with open(output_json_path, "r") as f:
+        with open(output_json_path, "r", encoding="utf-8") as f:
             current_results = json.load(f)
 
     folder1_ids = [
@@ -381,7 +382,7 @@ def perform_sxs_paper_quality_batch(
 
     current_results["_summary_stats"] = stats
 
-    with open(output_json_path, "w") as f:
+    with open(output_json_path, "w", encoding="utf-8") as f:
         json.dump(current_results, f, indent=4)
 
     print("\n" + "=" * 50, flush=True)

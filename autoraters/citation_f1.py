@@ -38,7 +38,7 @@ load_dotenv(dot_file)
 DATASET_DIR = os.path.join(os.path.dirname(__file__), "../datasets")
 
 S2_API_KEY = os.getenv("SEMANTIC_SCHOLAR_API_KEY")
-print(f"Loaded S2 API Key for this project: {S2_API_KEY}")
+print(f"S2 API key configured: {bool(S2_API_KEY)}")
 
 PRIORITY_PROMPT = """You are an expert academic reviewer. Read the following paper text and analyze its references.
 Your goal is to categorize the provided references into two priorities:
@@ -101,19 +101,27 @@ class ReferenceF1V1Evaluator:
         ]
 
         # Parallel extraction of titles from citation strings
+        def _safe_extract(ref):
+            try:
+                return extract_paper_title_from_citation(ref)
+            except Exception as e:
+                print(f"Title extraction failed for citation ({e}); skipping it.")
+                return None
+
         cleaned_titles = Parallel(n_jobs=10, backend="threading")(
-            delayed(extract_paper_title_from_citation)(ref)
+            delayed(_safe_extract)(ref)
             for ref in tqdm(cleaned_refs, desc="Extracting Titles from Text")
         )
 
         return cleaned_refs, cleaned_titles
 
-    def _fetch_paper_id(self, paper_title: str) -> dict:
+    def _fetch_paper_id(self, paper_title: str, _attempt: int = 0) -> dict:
         """
         Queries Semantic Scholar with the raw citation string to find a Unique ID (paperId).
         """
         if not paper_title:
             return None
+        max_rate_limit_retries = 6
 
         params = {"query": paper_title, "limit": 1, "fields": "paperId,title"}
 
@@ -130,9 +138,13 @@ class ReferenceF1V1Evaluator:
                         "fetched_paper_title": data["data"][0]["title"],
                     }
             elif response.status_code == 429:
-                print("Rate limit hit. Sleeping for 2 seconds...")
-                time.sleep(2)
-                return self._fetch_paper_id(paper_title)
+                if _attempt >= max_rate_limit_retries:
+                    print(f"Rate limit persisted; giving up on ref: {paper_title}")
+                    return None
+                delay = min(2 ** (_attempt + 1), 30)
+                print(f"Rate limit hit. Sleeping for {delay} seconds...")
+                time.sleep(delay)
+                return self._fetch_paper_id(paper_title, _attempt + 1)
 
         except Exception as e:
             print(f"Error fetching ID for ref: {paper_title}... -> {e}")
@@ -211,11 +223,15 @@ class ReferenceF1V1Evaluator:
         )
 
         priorities = {}
+        priorities_ok = paper_text is None
         if paper_text is not None:
             print("Calling LLM to classify citation priorities...")
             # Map 1-indexed strictly to the extracted ref_list length
             start_llm = time.time()
             priorities = self._get_citation_priorities(paper_text, ref_list)
+            if not isinstance(priorities, dict):
+                priorities = {}
+            priorities_ok = bool(priorities)
             end_llm = time.time()
             print(f"Finished Calling LLM. Took {end_llm - start_llm:.2f} seconds.")
 
@@ -257,6 +273,7 @@ class ReferenceF1V1Evaluator:
             "p0_ids_count": len(p0_ids),
             "p1_ids": list(p1_ids),
             "p1_ids_count": len(p1_ids),
+            "priorities_ok": priorities_ok,
         }
 
     def evaluate_from_data(self, gt_data: Dict, gen_data: Dict) -> Dict:
@@ -264,11 +281,11 @@ class ReferenceF1V1Evaluator:
         Computes precision/recall/f1 using pre-processed dictionary data for Overall, P0, and P1.
         """
         log_path_gt = os.path.join(self.log_folder, "gt_ref_info.json")
-        with open(log_path_gt, "w") as f:
+        with open(log_path_gt, "w", encoding="utf-8") as f:
             json.dump(gt_data, f, indent=4)
 
         log_path_gen = os.path.join(self.log_folder, "gen_ref_info.json")
-        with open(log_path_gen, "w") as f:
+        with open(log_path_gen, "w", encoding="utf-8") as f:
             json.dump(gen_data, f, indent=4)
 
         gt_ids_all = set(gt_data.get("all_ids", []))
@@ -354,7 +371,7 @@ class ReferenceF1V1Evaluator:
         }
 
         output_json_path = os.path.join(self.log_folder, "metrics.json")
-        with open(output_json_path, "w") as f:
+        with open(output_json_path, "w", encoding="utf-8") as f:
             json.dump(metrics_dict, f, indent=4)
         print(f"Dumped metrics to {output_json_path}.")
 
@@ -384,7 +401,7 @@ def get_citation_f1_metrics(
     if os.path.exists(gt_cache_path):
         print(f"Loading cached Ground Truth references from: {gt_cache_path}")
         try:
-            with open(gt_cache_path, "r") as f:
+            with open(gt_cache_path, "r", encoding="utf-8") as f:
                 gt_data = json.load(f)
         except Exception as e:
             print(f"Failed to load cache {gt_cache_path}, will re-process. Error: {e}")
@@ -394,9 +411,10 @@ def get_citation_f1_metrics(
         gt_references_text = get_paper_references_from_pdf(
             original_pdf, model_name=model_name
         )
-        if gt_references_text is None:
-            print("Error: Could not extract text from GT PDF.")
-            gt_references_text = ""
+        if not gt_references_text:
+            # Fail this paper instead of caching an empty GT, which would score
+            # recall/F1 = 0 on every future run.
+            raise RuntimeError(f"Could not extract references from GT PDF {original_pdf}")
 
         print(f"Loading full paper text for LLM citation categorization...")
         paper_text = load_paper(
@@ -407,12 +425,20 @@ def get_citation_f1_metrics(
             gt_references_text, tag="gt", paper_text=paper_text
         )
 
-        try:
-            with open(gt_cache_path, "w") as f:
-                json.dump(gt_data, f, indent=4)
-            print(f"Cached Ground Truth references to: {gt_cache_path}")
-        except Exception as e:
-            print(f"Warning: Could not write GT cache file. {e}")
+        if gt_data.get("all_ids_count", 0) == 0 or not gt_data.get(
+            "priorities_ok", True
+        ):
+            print(
+                "Warning: GT extraction or P0/P1 classification looks incomplete; "
+                "not caching it so the next run retries."
+            )
+        else:
+            try:
+                with open(gt_cache_path, "w", encoding="utf-8") as f:
+                    json.dump(gt_data, f, indent=4)
+                print(f"Cached Ground Truth references to: {gt_cache_path}")
+            except Exception as e:
+                print(f"Warning: Could not write GT cache file. {e}")
 
     # --- 2. Handle Generated PDF (Always Process) ---
     print(f"Processing Generated PDF: {generated_pdf}")
@@ -471,7 +497,7 @@ def generate_gt_citations_batch(
     info_map = {}
     if os.path.exists(info_json_path):
         try:
-            with open(info_json_path, "r") as f:
+            with open(info_json_path, "r", encoding="utf-8") as f:
                 info_data = json.load(f)
             if isinstance(info_data, list):
                 for item in info_data:
@@ -486,7 +512,7 @@ def generate_gt_citations_batch(
     progress_data = {"processed_count": 0, "successful_papers": {}}
     if progress_json_path and os.path.exists(progress_json_path):
         try:
-            with open(progress_json_path, "r") as f:
+            with open(progress_json_path, "r", encoding="utf-8") as f:
                 progress_data = json.load(f)
                 print(f"Loaded existing progress from {progress_json_path}")
         except Exception as e:
@@ -498,7 +524,7 @@ def generate_gt_citations_batch(
         if progress_json_path:
             with progress_lock:
                 try:
-                    with open(progress_json_path, "w") as f:
+                    with open(progress_json_path, "w", encoding="utf-8") as f:
                         json.dump(progress_data, f, indent=4)
                 except Exception as e:
                     print(f"Error saving progress: {e}")
@@ -541,7 +567,7 @@ def generate_gt_citations_batch(
         if os.path.exists(output_json_path):
             print(f"Skipping {paper_num}: {output_json_path} already exists.")
             try:
-                with open(output_json_path, "r") as f:
+                with open(output_json_path, "r", encoding="utf-8") as f:
                     gt_data = json.load(f)
 
                 # Update progress since it exists
@@ -586,7 +612,7 @@ def generate_gt_citations_batch(
                     print(f"[{paper_num}] Finished process_text_to_data.")
                 print(f"[{paper_num}] Released evaluator_lock.")
 
-                with open(output_json_path, "w") as f:
+                with open(output_json_path, "w", encoding="utf-8") as f:
                     json.dump(gt_data, f, indent=4)
 
                 print(f"Successfully generated {output_json_path}")
@@ -651,7 +677,7 @@ def generate_gt_citations_batch(
                 updated_info_data.append(item)
 
         try:
-            with open(info_json_path, "w") as f:
+            with open(info_json_path, "w", encoding="utf-8") as f:
                 json.dump(updated_info_data, f, indent=4)
             print(f"Successfully updated {info_json_path} with P0/P1 citation counts.")
         except Exception as e:
@@ -671,7 +697,7 @@ def review_citation_f1_batch(
     )
 
     if os.path.exists(all_results_dump_path):
-        with open(all_results_dump_path, "r") as f:
+        with open(all_results_dump_path, "r", encoding="utf-8") as f:
             all_results = json.load(f)
             print(f"Loaded {len(all_results)-1} results from {all_results_dump_path}.")
 
@@ -715,11 +741,11 @@ def review_citation_f1_batch(
             if not os.path.exists(original_pdf_path):
                 if "cvpr2025" in project_folder.lower():
                     original_pdf_path = os.path.join(
-                        DATASET_DIR, "cvpr2025/papers/{paper_id}/{paper_id}.pdf"
+                        DATASET_DIR, f"cvpr2025/papers/{paper_id}/{paper_id}.pdf"
                     )
                 elif "iclr2025" in project_folder.lower():
                     original_pdf_path = os.path.join(
-                        DATASET_DIR, "iclr2025/papers/{paper_id}/{paper_id}.pdf"
+                        DATASET_DIR, f"iclr2025/papers/{paper_id}/{paper_id}.pdf"
                     )
                 else:
                     raise ValueError(f"Unknown dataset: {project_folder}")
@@ -748,7 +774,7 @@ def review_citation_f1_batch(
 
             with results_lock:
                 all_results[paper_id] = data
-                with open(all_results_dump_path, "w") as f:
+                with open(all_results_dump_path, "w", encoding="utf-8") as f:
                     json.dump(all_results, f, indent=4)
 
         except Exception as e:
@@ -765,7 +791,7 @@ def review_citation_f1_batch(
             )
         )
 
-    with open(all_results_dump_path, "w") as f:
+    with open(all_results_dump_path, "w", encoding="utf-8") as f:
         json.dump(all_results, f, indent=4)
 
     print(f"Dumped {len(all_results)} results to {all_results_dump_path}.")
@@ -781,7 +807,7 @@ def analyze_citation_metrics(json_file_path: str):
         print(f"Error: File not found: {json_file_path}")
         return
 
-    with open(json_file_path, "r") as f:
+    with open(json_file_path, "r", encoding="utf-8") as f:
         json_data = json.load(f)
 
     # Metrics we want to track
@@ -858,5 +884,5 @@ def analyze_citation_metrics(json_file_path: str):
     print("=" * 60)
 
     json_data["overall_metrics"] = overall_metrics
-    with open(json_file_path, "w") as f:
+    with open(json_file_path, "w", encoding="utf-8") as f:
         json.dump(json_data, f, indent=4)
