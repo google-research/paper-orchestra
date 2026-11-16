@@ -14,6 +14,7 @@
 
 import json
 import os
+from pathlib import Path
 import tqdm
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -341,8 +342,9 @@ def perform_batch_rating_json(
         f"Extracted {len(paper_path_dict.keys())} papers from {paper_info_json_path}."
     )
 
-    output_json_path = paper_info_json_path.replace(
-        ".json", "_lit_review_quality_ratings.json"
+    manifest = Path(paper_info_json_path)
+    output_json_path = manifest.with_name(
+        f"{manifest.stem}_lit_review_quality_ratings.json"
     )
     all_lit_ratings = perform_batch_rating(
         paper_path_dict=paper_path_dict,
