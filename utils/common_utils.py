@@ -52,3 +52,45 @@ def load_md_file(md_file_path: str):
         prompt_content = f.read()
 
     return prompt_content
+
+
+# Magic bytes for the image formats the pipeline can produce or receive.
+_IMAGE_MAGIC_SIGNATURES = (
+    (b"\x89PNG\r\n\x1a\n", "image/png"),
+    (b"\xff\xd8\xff", "image/jpeg"),
+    (b"GIF87a", "image/gif"),
+    (b"GIF89a", "image/gif"),
+)
+
+_IMAGE_EXTENSION_MIME_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+}
+
+
+def get_image_mime_type(image_path: str) -> str:
+    """Returns the MIME type of an image file, e.g. "image/png".
+
+    The file signature is checked before the extension because figures are
+    either uploaded by users or written by the plotting agent, so the extension
+    can disagree with the actual bytes. Returns "application/octet-stream" when
+    the format cannot be determined, so callers never have to handle None.
+    """
+    try:
+        with open(image_path, "rb") as f:
+            header = f.read(12)
+    except OSError:
+        return "application/octet-stream"
+
+    for signature, mime_type in _IMAGE_MAGIC_SIGNATURES:
+        if header.startswith(signature):
+            return mime_type
+
+    if header[:4] == b"RIFF" and header[8:12] == b"WEBP":
+        return "image/webp"
+
+    extension = osp.splitext(image_path)[1].lower()
+    return _IMAGE_EXTENSION_MIME_TYPES.get(extension, "application/octet-stream")
