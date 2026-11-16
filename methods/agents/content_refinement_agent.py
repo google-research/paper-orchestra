@@ -169,6 +169,9 @@ Respond in JSON format with the following structure:
             )
 
             formatting_review = response_dict["parsed_response"]
+            if not isinstance(formatting_review, dict):
+                # Callers use .get(); a list/str response would crash the loop.
+                return {"Error": "Formatting review was not a JSON object"}
 
             return formatting_review
         except Exception as e:
@@ -194,7 +197,7 @@ Respond in JSON format with the following structure:
             val = review.get(axis, 0)
             try:
                 scores[axis] = float(val)
-            except ValueError:
+            except (TypeError, ValueError):
                 scores[axis] = 0.0
         return scores
 
@@ -203,7 +206,8 @@ Respond in JSON format with the following structure:
         Main execution loop:
         1. Compile Initial Draft -> Review.
         2. Refine -> Compile -> Review.
-        3. Repeat until score increases or max_reflections reached.
+        3. Keep a revision only if the score does not drop; stop on a drop or
+           when max_reflections is reached.
         """
         self.current_tex = self._read_file(texfile_path)
         worklog_save_path = os.path.join(
@@ -229,8 +233,10 @@ Respond in JSON format with the following structure:
         print(f" >> Initial PDF saved to {initial_pdf_path}")
 
         if not os.path.exists(initial_pdf_path):
-            print(" >> Error: Initial PDF failed to compile. Cannot review.")
-            return f" >> Error: Initial PDF '{initial_pdf_path}' failed to compile. Cannot review."
+            # Raise instead of returning a message where callers expect a path.
+            raise RuntimeError(
+                f"Initial PDF '{initial_pdf_path}' failed to compile. Cannot review."
+            )
 
         v0_screenshots_dir = os.path.join(
             self.work_dir, "pdf_screenshots", "content_refinement", "v0"

@@ -276,13 +276,18 @@ def process_paper_task(
     image_model_name,
     plotting_max_critic_rounds,
     research_cutoff,
+    reflection_model_name="gemini-3.1-pro-preview",
 ):
     """
     Worker function to process a single paper.
     Returns a dictionary with results to be handled by the main thread.
     """
     try:
-        paper_id = paper["paper_id"]
+        paper_id = str(paper["paper_id"]).strip()
+        # paper_id is joined into a path that is later rmtree'd: an empty or
+        # path-like id would delete output_dir itself or its parent.
+        if not paper_id or paper_id in (".", "..") or osp.basename(paper_id) != paper_id:
+            raise ValueError(f"Invalid paper_id {paper['paper_id']!r}")
         print(f"Starting processing for paper '{paper_id}'...")
 
         paper_dest_dir = osp.join(output_dir, paper_id)
@@ -319,6 +324,7 @@ def process_paper_task(
                 idea_filename=idea_filename,
                 experimental_log_filename=experimental_log_filename,
                 writer_model_name=writer_model_name,
+                reflection_model_name=reflection_model_name,
                 plotting_model_name=plotting_model_name,
                 image_model_name=image_model_name,
                 plotting_max_critic_rounds=plotting_max_critic_rounds,
@@ -444,6 +450,7 @@ def run_batch_writeup(
     research_cutoff: str = "2024-11",
     n_papers=-1,
     max_workers=4,
+    reflection_model_name: str = "gemini-3.1-pro-preview",
 ):
     if output_dir == "":
         output_dir = create_log_folder(prefix=output_dir_prefix, date_str=date_str)
@@ -480,6 +487,7 @@ def run_batch_writeup(
                 image_model_name,
                 plotting_max_critic_rounds,
                 research_cutoff,
+                reflection_model_name,
             ): paper["paper_id"]
             for paper in papers_to_process
         }
