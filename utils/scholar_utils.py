@@ -25,10 +25,29 @@ from dotenv import load_dotenv  # type: ignore
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 load_dotenv(os.path.join(cur_dir, "../.env"))
 S2_API_KEY = os.environ.get("SEMANTIC_SCHOLAR_API_KEY")
-print(f"Using S2 API Key: {S2_API_KEY}")
+print(f"S2 API key configured: {bool(S2_API_KEY)}")
 
 
 # --- SEMANTIC SCHOLAR UTILS ---
+
+S2_MAX_RETRIES = 4
+S2_RETRY_STATUS = {429, 500, 502, 503, 504}
+
+
+def _s2_get_with_retry(url: str, headers: Dict, params: Dict, timeout: int = 5):
+    """GET with exponential backoff on rate limiting / transient server errors."""
+    rsp = None
+    for attempt in range(S2_MAX_RETRIES):
+        rsp = requests.get(url, headers=headers, params=params, timeout=timeout)
+        if rsp.status_code not in S2_RETRY_STATUS:
+            return rsp
+        retry_after = rsp.headers.get("Retry-After")
+        try:
+            delay = float(retry_after) if retry_after else 2 ** (attempt + 1)
+        except ValueError:
+            delay = 2 ** (attempt + 1)
+        time.sleep(min(delay, 30))
+    return rsp
 
 
 def s2_title_search(
@@ -59,7 +78,7 @@ def s2_title_search(
             return True
 
     try:
-        rsp = requests.get(
+        rsp = _s2_get_with_retry(
             "https://api.semanticscholar.org/graph/v1/paper/search",
             headers=headers,
             params={
@@ -67,9 +86,11 @@ def s2_title_search(
                 "limit": 3,
                 "fields": "title,authors,venue,year,abstract,citationCount,journal,publicationDate",
             },
-            timeout=5,
         )
         if rsp.status_code != 200:
+            print(
+                f"      ⚠️ S2 search for '{title_query}' failed with HTTP {rsp.status_code}"
+            )
             return None
         results = rsp.json().get("data", [])
         if not results:
