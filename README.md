@@ -75,6 +75,7 @@ python paper_writing_cli.py \
 *   `--use_plotting`: Enable the plotting agent workflow to generate figures from code (Default: `False`).
 *   `--writer_model_name`: LLM for writer and literature agents.
 *   `--reflection_model_name`: LLM for reflection agents.
+*   `--resume`: Continue an interrupted run in the same `--output_dir` at the first unfinished stage (outline, literature, sections, refinement). A stage is reused only if the raw materials, template, guidelines, models and `--research_cutoff` are unchanged. Pass `--research_cutoff` explicitly: its default is the current month. Not available with `--use_plotting`.
 
 ### Interactive Demo
 

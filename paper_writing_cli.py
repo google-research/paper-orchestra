@@ -86,8 +86,17 @@ def main():
         default=3,
         help="Maximum rounds of self-correction in the plotting agent.",
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Continue an interrupted run in --output_dir at the first unfinished stage "
+        "(outline, literature, sections, refinement). Inputs, models and cutoff must be unchanged.",
+    )
 
     args = parser.parse_args()
+
+    if args.resume and (args.use_plotting or not args.output_dir):
+        parser.error("--resume requires --output_dir and --use_plotting false.")
 
     if args.research_cutoff is None:
         args.research_cutoff = datetime.now().strftime("%Y-%m")
@@ -169,6 +178,7 @@ def main():
             writer_model_name=args.writer_model_name,
             reflection_model_name=args.reflection_model_name,
             research_cutoff=args.research_cutoff,
+            resume=args.resume,
         )
 
 
