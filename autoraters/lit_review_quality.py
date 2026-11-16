@@ -117,7 +117,7 @@ def _process_and_save_single_paper(
     with FILE_LOCK:
         current_ratings_dict[paper_id] = lit_rating
 
-        with open(output_json_path, "w") as f:
+        with open(output_json_path, "w", encoding="utf-8") as f:
             json.dump(current_ratings_dict, f, indent=4)
 
     return paper_id, True
@@ -131,7 +131,7 @@ def perform_batch_rating(
     model_name: str = "gemini-3.1-pro-preview",
 ):
     if os.path.exists(output_json_path):
-        with open(output_json_path, "r") as f:
+        with open(output_json_path, "r", encoding="utf-8") as f:
             try:
                 all_lit_ratings = json.load(f)
             except json.JSONDecodeError:
@@ -264,9 +264,15 @@ def print_literature_review_stats(file_path):
             continue
 
         total_papers += 1
-        total_overall_score_sum += paper_content.get(
+        overall = paper_content.get(
             "overall_score", paper_content.get("overall_quality_score", 0)
         )
+        # The prompt allows null; treat it like a missing score (0), as the
+        # existing code already does, instead of crashing on int + None.
+        try:
+            total_overall_score_sum += float(overall)
+        except (TypeError, ValueError):
+            total_overall_score_sum += 0
 
         axis_scores_dict = paper_content.get("axis_scores", {})
 
@@ -316,7 +322,7 @@ def print_literature_review_stats(file_path):
     print("=" * 60)
 
     data["overall_metrics"] = overall_metrics
-    with open(file_path, "w") as f:
+    with open(file_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
 
 
@@ -325,7 +331,7 @@ def perform_batch_rating_json(
     avg_citation_count: int = 58,
     model_name: str = "gemini-3.1-pro-preview",
 ):
-    with open(paper_info_json_path, "r") as f:
+    with open(paper_info_json_path, "r", encoding="utf-8") as f:
         paper_infos = json.load(f)
         print(f"Loaded {len(paper_infos)} papers from {paper_info_json_path}")
 
