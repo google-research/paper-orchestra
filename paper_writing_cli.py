@@ -87,7 +87,7 @@ def main():
         help="Maximum rounds of self-correction in the plotting agent.",
     )
 
-    # Local addition: continue an interrupted run in the same --output_dir.
+    # Continue an interrupted run in the same --output_dir.
     parser.add_argument(
         "--resume",
         action="store_true",

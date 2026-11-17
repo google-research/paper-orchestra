@@ -45,7 +45,7 @@ def write_single_paper(
     latex_writeup_dir = osp.join(base_dir, "latex_writeup")
     pdf_file = osp.join(base_dir, "final_paper.pdf")
 
-    # Local addition: --resume keeps finished stages instead of deleting them.
+    # --resume keeps finished stages instead of deleting them.
     if osp.exists(latex_writeup_dir) and not resume:
         shutil.rmtree(latex_writeup_dir)
     if osp.exists(pdf_file):

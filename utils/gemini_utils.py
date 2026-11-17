@@ -34,7 +34,7 @@ _genai_client_lock = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
-# Local addition (not upstream): spend guard.
+# Optional spend guard.
 # Set PAPER_BUDGET_USD in .env to stop the whole process once the estimated
 # Gemini spend passes that amount. Unset or 0 = no limit (usage is still logged).
 # Prices are USD per 1M tokens for gemini-3.1-pro-preview (paid tier), read from
@@ -147,7 +147,7 @@ def get_genai_client() -> genai.Client:
                     )
                 elif gemini_api_key:
                     print("Using Gemini API Key configuration.")
-                    # Local addition: this SDK version defaults to API version v1,
+                    # Recent google-genai versions default to API version v1,
                     # where preview models (the defaults here) are not served.
                     _genai_client = genai.Client(
                         api_key=gemini_api_key,
@@ -267,7 +267,7 @@ def call_gemini_with_contents(
     raw_response = None
     parsed_response = None
 
-    # Local addition: route to Claude Code / Codex when PAPER_LLM_BACKEND is set.
+    # Route to Claude Code / Codex when PAPER_LLM_BACKEND is set.
     from utils.cli_backend import call_cli, cli_backend
 
     use_cli = bool(cli_backend())

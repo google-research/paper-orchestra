@@ -54,7 +54,7 @@ def write_single_paper(
     time_log = {}
     time_log["Start_Time_Absolute"] = time.time()
 
-    # Local addition: --resume keeps finished stages instead of deleting them.
+    # --resume keeps finished stages instead of deleting them.
     if osp.exists(latex_writeup_dir) and not resume:
         shutil.rmtree(latex_writeup_dir)
     if osp.exists(pdf_file):
