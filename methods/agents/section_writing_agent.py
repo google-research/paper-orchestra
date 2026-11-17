@@ -28,12 +28,15 @@ Input:
 Output:
 - completed_paper.tex: The completed LaTeX file with all sections filled in.
 """
+from utils.materials import load_experiment_context
+from utils.llm_backend_utils import DEFAULT_MODEL
+
 
 import json
 from typing import List, Dict
 
 from methods.prompts.section_writing_agent import section_writing_agent_prompt
-from utils.gemini_utils import parse_gemini_latex_results
+from utils.llm_backend_utils import parse_latex_results
 from utils.llm_backend_utils import call_llm_with_images
 
 import json
@@ -50,7 +53,7 @@ class SectionWritingAgent:
         citation_map_path: str,
         figures_info_path: str,
         guidelines_path: str,
-        model_name: str = "gemini-3.1-pro-preview",
+        model_name: str = DEFAULT_MODEL,
     ):
 
         self.model_name = model_name
@@ -132,7 +135,7 @@ class SectionWritingAgent:
             outline_content = self._read_file(self.outline_path)
             template_content = self._read_file(self.template_path)
             idea_content = self._read_file(self.idea_path)
-            log_content = self._read_file(self.experimental_log_path)
+            log_content = load_experiment_context(self.experimental_log_path)
             guidelines_content = self._read_file(self.guidelines_path)
 
             citation_map = self._read_json(self.citation_map_path)
@@ -158,7 +161,7 @@ class SectionWritingAgent:
                         img_path = os.path.join(figures_dir, name)
                         if os.path.exists(img_path) and not name.endswith(
                             ".pdf"
-                        ):  # We can only pass raster images, not PDFs, to Vertex Vision
+                        ):  # We can only pass raster images, not PDFs, as raster images
                             image_paths.append(img_path)
 
         except Exception as e:
@@ -206,7 +209,7 @@ Here are the input materials for the paper.
                 "temperature": 0.7,
             },
             model_name=self.model_name,
-            result_parsing_func=parse_gemini_latex_results,
+            result_parsing_func=parse_latex_results,
             check_parsed_response_not_none=True,
         )
         cleaned_latex = response_dict["parsed_response"]

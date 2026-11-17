@@ -12,17 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from utils.materials import load_experiment_context
+from utils.llm_backend_utils import DEFAULT_MODEL, text_part, bytes_part
+
 import os
 import traceback
 import json
 import shutil
-from google.genai import types  # type: ignore
 
 from utils.pdf_utils import compile_latex, load_paper, pdf_to_grid_images
-from utils.gemini_utils import (
-    call_gemini_with_contents,
-    parse_gemini_json_latex_response,
-    call_gemini_with_images,
+from utils.llm_backend_utils import (
+    call_llm_with_contents,
+    parse_json_latex_response,
+    call_llm_with_images,
 )
 
 from autoraters.agent_review import perform_review_agentreview
@@ -38,7 +40,7 @@ class ContentRefinementAgent:
         experimental_log_path: str,
         citation_map_path: str,
         guidelines_path: str,
-        model_name: str = "gemini-3.1-pro-preview",
+        model_name: str = DEFAULT_MODEL,
         max_reflections: int = 3,
         work_dir: str = "./paper_workspace",
     ):
@@ -88,7 +90,9 @@ class ContentRefinementAgent:
             paper_text = load_paper(pdf_path=pdf_path)
 
             review = perform_review_agentreview(
-                text=paper_text,
+                text=("AUTHOR-SUPPLIED EXPERIMENTAL EVIDENCE AND CLAIM LIMITS:\n"
+                      + load_experiment_context(self.experimental_log_path)
+                      + "\n\nMANUSCRIPT TO REVIEW:\n" + paper_text),
                 model_name=self.model_name,
             )
 
@@ -162,7 +166,7 @@ Respond in JSON format with the following structure:
 ```
 """
             )
-            response_dict = call_gemini_with_images(
+            response_dict = call_llm_with_images(
                 prompt=prompt,
                 images=image_paths,
                 model_name=self.model_name,
@@ -212,7 +216,7 @@ Respond in JSON format with the following structure:
 
         context_files = {
             "guidelines": self._read_file(self.guidelines_path),
-            "experimental_log": self._read_file(self.experimental_log_path),
+            "experimental_log": load_experiment_context(self.experimental_log_path),
             "citations": self._read_file(self.citation_map_path),
         }
 
@@ -290,16 +294,16 @@ INSTRUCTION:
 
             print(" >> calling Refinement Agent...")
             try:
-                response_dict = call_gemini_with_contents(
+                response_dict = call_llm_with_contents(
                     contents=[
-                        types.Part.from_bytes(
+                        bytes_part(
                             data=pdf_bytes, mime_type="application/pdf"
                         ),
-                        types.Part.from_text(text=user_prompt_text),
+                        text_part(text=user_prompt_text),
                     ],
                     generation_configs={"system_instruction": self.system_prompt},
                     model_name=self.model_name,
-                    result_parsing_func=parse_gemini_json_latex_response,
+                    result_parsing_func=parse_json_latex_response,
                 )
 
                 parsed = json.loads(response_dict["parsed_response"])
@@ -494,7 +498,7 @@ INSTRUCTION:
                 print(" >> No critical formatting issues found. Breaking loop.")
                 break
 
-            print(" >> [VLM] Found formatting issues. Calling Gemini to fix...")
+            print(" >> [VLM] Found formatting issues. Calling Claude to fix...")
 
             prompt = f"""You are a LaTeX formatting expert. Your task is to fix the formatting issues identified in the feedback below.
 You must STRICTLY follow the provided formatting guidelines.
@@ -517,9 +521,9 @@ block.
 """
 
             try:
-                response_dict = call_gemini_with_contents(
+                response_dict = call_llm_with_contents(
                     contents=[
-                        types.Part.from_text(text=prompt),
+                        text_part(text=prompt),
                     ],
                     model_name=self.model_name,
                     result_parsing_func=lambda x: {"raw_response": x},

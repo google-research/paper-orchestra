@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from utils.llm_backend_utils import DEFAULT_MODEL
+
 import json
 import os
 import tqdm
@@ -56,7 +58,7 @@ FILE_LOCK = threading.Lock()
 
 def rate_single_paper(
     paper_pdf_path: str,
-    model_name: str = "gemini-3.1-pro-preview",
+    model_name: str = DEFAULT_MODEL,
     avg_citation_count: int = 58,
 ):
     try:
@@ -128,7 +130,7 @@ def perform_batch_rating(
     output_json_path: str,
     max_workers: int = 10,
     avg_citation_count: int = 58,
-    model_name: str = "gemini-3.1-pro-preview",
+    model_name: str = DEFAULT_MODEL,
 ):
     if os.path.exists(output_json_path):
         with open(output_json_path, "r") as f:
@@ -195,7 +197,7 @@ def perform_batch_rating_folder(
     root_folder: str,
     paper_rel_path="latex_writeup/final_paper.pdf",
     avg_citation_count: int = 58,
-    model_name: str = "gemini-3.1-pro-preview",
+    model_name: str = DEFAULT_MODEL,
 ):
     assert os.path.exists(root_folder), "Please provide a valid folder!"
 
@@ -323,7 +325,7 @@ def print_literature_review_stats(file_path):
 def perform_batch_rating_json(
     paper_info_json_path: str,
     avg_citation_count: int = 58,
-    model_name: str = "gemini-3.1-pro-preview",
+    model_name: str = DEFAULT_MODEL,
 ):
     with open(paper_info_json_path, "r") as f:
         paper_infos = json.load(f)

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from utils.llm_backend_utils import DEFAULT_MODEL
+
 import os
 import os.path as osp
 import shutil
@@ -35,8 +37,8 @@ def write_single_paper(
     latex_template_dir,
     idea_filename="idea_dense.md",
     experimental_log_filename="experimental_log.md",
-    writer_model_name: str = "gemini-3.1-pro-preview",
-    reflection_model_name: str = "gemini-3.1-pro-preview",
+    writer_model_name: str = DEFAULT_MODEL,
+    reflection_model_name: str = DEFAULT_MODEL,
     research_cutoff: str = "2024-11",
 ):
     latex_writeup_dir = osp.join(base_dir, "latex_writeup")
@@ -55,7 +57,7 @@ def write_single_paper(
         shutil.copytree(old_figure_dir, new_figure_dir, dirs_exist_ok=True)
     figures_dir = new_figure_dir
 
-    max_n_tries = 3
+    max_n_tries = 1
     cur_try = 0
     succeed = False
 
@@ -366,7 +368,7 @@ def run_batch_writeup(
     date_str: str = "",
     idea_filename: str = "idea_sparse.md",
     experimental_log_filename: str = "experimental_log.md",
-    writer_model_name: str = "gemini-3.1-pro-preview",
+    writer_model_name: str = DEFAULT_MODEL,
     research_cutoff: str = "2024-11",
     n_papers=-1,
     max_workers=4,
