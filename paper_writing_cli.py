@@ -1,176 +1,136 @@
 # Copyright 2026 Google LLC
-#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# You may obtain a copy at https://www.apache.org/licenses/LICENSE-2.0
+"""Claude-only manuscript pipeline; logs and review status are saved to files."""
 
 import argparse
-import sys
+import contextlib
+import datetime
+import json
 import os
+from pathlib import Path
 import shutil
-from datetime import datetime
+import sys
+import traceback
+
+from utils.llm_backend_utils import DEFAULT_MODEL, validate_model
+from utils.materials import write_materials_manifest
+from utils.scholar_utils import cutoff_boundary
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="CLI for generating a single paper from the Paper Orchestra pipeline."
-    )
+class Tee:
+    def __init__(self, file, console):
+        self.file, self.console = file, console
 
-    parser.add_argument(
-        "--raw_materials_dir",
-        required=True,
-        help="Directory containing the raw materials (e.g. idea and experimental log).",
-    )
-    parser.add_argument(
-        "--output_dir",
-        default=None,
-        help="Directory to output the generated paper. If not specified, an automatic folder is created.",
-    )
-    parser.add_argument(
-        "--latex_template_dir",
-        required=True,
-        help="Directory containing the LaTeX template (e.g. cvpr2025/iclr2025).",
-    )
-    parser.add_argument(
-        "--idea_filename",
-        default="idea_sparse.md",
-        help="Filename of the idea document within raw_materials. Default: idea_sparse.md",
-    )
-    parser.add_argument(
-        "--experimental_log_filename",
-        default="experimental_log.md",
-        help="Filename of the experimental log within raw_materials. Default: experimental_log.md",
-    )
-    parser.add_argument(
-        "--writer_model_name",
-        default="gemini-3.1-pro-preview",
-        help="LLM for writer and literature agents.",
-    )
-    parser.add_argument(
-        "--reflection_model_name",
-        default="gemini-3.1-pro-preview",
-        help="LLM for reflection agents.",
-    )
-    parser.add_argument(
-        "--research_cutoff",
-        default=None,
-        help="Year-Month cutoff date for literature review (e.g., 2024-11). If not provided, defaults to current Year-Month.",
-    )
-    parser.add_argument(
-        "--use_plotting",
-        type=lambda x: (str(x).lower() in ["true", "1", "yes"]),
-        default=False,
-        help="Enable plotting agent workflow to generate figures from code.",
-    )
-    parser.add_argument(
-        "--plotting_model_name",
-        default="gemini-3.1-pro-preview",
-        help="LLM for the plotting agent.",
-    )
-    parser.add_argument(
-        "--image_model_name",
-        default="gemini-3-pro-image-preview",
-        help="Vision model if required by plotting agent.",
-    )
-    parser.add_argument(
-        "--plotting_max_critic_rounds",
-        type=int,
-        default=3,
-        help="Maximum rounds of self-correction in the plotting agent.",
-    )
+    def write(self, text):
+        self.file.write(text)
+        self.console.write(text)
+        self.flush()
 
-    args = parser.parse_args()
+    def flush(self):
+        self.file.flush()
+        self.console.flush()
 
-    if args.research_cutoff is None:
-        args.research_cutoff = datetime.now().strftime("%Y-%m")
 
-    if not os.path.exists(args.raw_materials_dir):
-        print(
-            f"Error: Raw materials directory '{args.raw_materials_dir}' does not exist."
-        )
-        sys.exit(1)
-
-    if args.output_dir:
-        base_dir = args.output_dir
-    else:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        base_dir = f"./paper_output_{timestamp}"
-
-    os.makedirs(base_dir, exist_ok=True)
-
-    target_raw_materials = os.path.join(base_dir, "raw_materials")
-    if os.path.abspath(target_raw_materials) != os.path.abspath(args.raw_materials_dir):
-        if os.path.exists(target_raw_materials):
-            shutil.rmtree(target_raw_materials)
-        shutil.copytree(args.raw_materials_dir, target_raw_materials)
-
-    if not args.use_plotting:
-        has_figures = False
-        figures_dir = os.path.join(args.raw_materials_dir, "figures")
-        if os.path.exists(figures_dir):
-            for f in os.listdir(figures_dir):
-                if f.lower().endswith((".pdf", ".png", ".jpg", ".jpeg")):
-                    has_figures = True
-                    break
-
-        if not has_figures:
-            print("\n" + "=" * 80)
-            print(
-                f"⚠️ WARNING: No figures (.pdf, .png, .jpg) detected in the {figures_dir} directory."
-            )
-            print(
-                "Since you are running WITHOUT plotting, we are using the provided materials directly."
-            )
-            print(
-                f"Please make sure you provide all necessary figures inside {figures_dir}."
-            )
-            print("If figures are missing, compilation may fail.")
-            print(
-                f"If you don't have figures, you can use the plotting agent to generate them by running with --use_plotting."
-            )
-            print("=" * 80 + "\n")
-
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Write a LaTeX draft using Claude and verified scholarly retrieval")
+    parser.add_argument("--raw_materials_dir", required=True)
+    parser.add_argument("--latex_template_dir", required=True)
+    parser.add_argument("--output_dir")
+    parser.add_argument("--idea_filename", default="idea_sparse.md")
+    parser.add_argument("--experimental_log_filename", default="experimental_log.md")
+    parser.add_argument("--writer_model_name", default=DEFAULT_MODEL)
+    parser.add_argument("--reflection_model_name", default=DEFAULT_MODEL)
+    parser.add_argument("--research_cutoff", help="Exclusive publication cutoff: YYYY-MM or YYYY-MM-DD")
+    parser.add_argument("--use_plotting", type=lambda x: str(x).lower() in {"true", "1", "yes"}, default=False)
+    # Preserve old command-line compatibility but reject automatic generation.
+    parser.add_argument("--plotting_model_name", default=DEFAULT_MODEL, help=argparse.SUPPRESS)
+    parser.add_argument("--image_model_name", default="disabled", help=argparse.SUPPRESS)
+    parser.add_argument("--plotting_max_critic_rounds", type=int, default=3, help=argparse.SUPPRESS)
+    parser.add_argument("--stream_logs", action="store_true", help="Also stream progress for the optional frontend")
+    args = parser.parse_args(argv)
     if args.use_plotting:
-        from methods.paper_writer_with_plotting import write_single_paper
-
-        print(f"🚀 Starting Paper Generation (WITH PLOTTING) in {base_dir}")
-        write_single_paper(
-            base_dir=base_dir,
-            latex_template_dir=args.latex_template_dir,
-            idea_filename=args.idea_filename,
-            experimental_log_filename=args.experimental_log_filename,
-            writer_model_name=args.writer_model_name,
-            reflection_model_name=args.reflection_model_name,
-            plotting_model_name=args.plotting_model_name,
-            image_model_name=args.image_model_name,
-            research_cutoff=args.research_cutoff,
-            plotting_max_critic_rounds=args.plotting_max_critic_rounds,
-        )
-    else:
-        from methods.paper_writer import write_single_paper
-
-        provided_figures_dir = os.path.join(args.raw_materials_dir, "figures")
-        print(
-            f"🚀 Starting Paper Generation (WITHOUT PLOTTING), with figures stored in {provided_figures_dir}"
-        )
-        write_single_paper(
-            base_dir=base_dir,
-            latex_template_dir=args.latex_template_dir,
-            idea_filename=args.idea_filename,
-            experimental_log_filename=args.experimental_log_filename,
-            writer_model_name=args.writer_model_name,
-            reflection_model_name=args.reflection_model_name,
-            research_cutoff=args.research_cutoff,
-        )
+        parser.error("Automatic plotting is disabled in this Claude fork; provide figures and use --use_plotting false")
+    args.research_cutoff = args.research_cutoff or datetime.datetime.now().strftime("%Y-%m")
+    try:
+        validate_model(args.writer_model_name)
+        validate_model(args.reflection_model_name)
+        cutoff_boundary(args.research_cutoff)
+    except ValueError as exc:
+        parser.error(str(exc))
+    materials = Path(args.raw_materials_dir).resolve()
+    template = Path(args.latex_template_dir).resolve()
+    for path in (materials / args.idea_filename, materials / args.experimental_log_filename,
+                 template / "template.tex", template / "guidelines.md"):
+        if not path.is_file():
+            parser.error(f"Required material is missing: {path}")
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        parser.error("Set ANTHROPIC_API_KEY in your environment or private .env")
+    for executable in ("pdflatex", "bibtex"):
+        if not shutil.which(executable):
+            parser.error(f"Install {executable} before starting paid model calls")
+    base = Path(args.output_dir or datetime.datetime.now().strftime("paper_output_%Y%m%d_%H%M%S")).resolve()
+    if base == materials or materials in base.parents:
+        parser.error("The output directory must be outside the input materials directory")
+    if base.exists() and (not base.is_dir() or any(base.iterdir())):
+        parser.error("Use a new or empty output directory; existing drafts will not be overwritten")
+    base.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(materials, base / "raw_materials", dirs_exist_ok=True)
+    write_materials_manifest(base / "raw_materials", base / "materials_manifest.json")
+    # Always use this run's separate usage ledger, never an experiment ledger.
+    (base / "usage.jsonl").touch()
+    old_usage_log = os.environ.get("PAPER_ORCHESTRA_USAGE_LOG")
+    os.environ["PAPER_ORCHESTRA_USAGE_LOG"] = str(base / "usage.jsonl")
+    config = vars(args).copy()
+    config["review_status"] = "human_review_required"
+    (base / "run_config.json").write_text(json.dumps(config, indent=2), encoding="utf-8")
+    success = False
+    error_type = None
+    try:
+        with (base / "run.log").open("w", encoding="utf-8") as log:
+            stdout = Tee(log, sys.stdout) if args.stream_logs else log
+            stderr = Tee(log, sys.stderr) if args.stream_logs else log
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                try:
+                    from methods.paper_writer import write_single_paper
+                    success = bool(write_single_paper(
+                        base_dir=str(base), latex_template_dir=str(template),
+                        idea_filename=args.idea_filename,
+                        experimental_log_filename=args.experimental_log_filename,
+                        writer_model_name=args.writer_model_name,
+                        reflection_model_name=args.reflection_model_name,
+                        research_cutoff=args.research_cutoff,
+                    )) and (base / "final_paper.pdf").is_file()
+                except Exception as exc:
+                    error_type = type(exc).__name__
+                    traceback.print_exc()
+    finally:
+        if old_usage_log is None:
+            os.environ.pop("PAPER_ORCHESTRA_USAGE_LOG", None)
+        else:
+            os.environ["PAPER_ORCHESTRA_USAGE_LOG"] = old_usage_log
+    source = base / "content_refinement_workdir" / "final_refined_paper.tex"
+    if success and source.is_file():
+        shutil.copy(source, base / "final_paper.tex")
+    report = (
+        "# Claude manuscript run\n\n"
+        + f"- Pipeline status: {'completed' if success else 'failed'}\n"
+        + "- Scientific review status: **human review required**\n"
+        + f"- Writer: `{args.writer_model_name}`\n"
+        + f"- Reviewer: `{args.reflection_model_name}`\n"
+        + f"- Literature cutoff (exclusive): `{args.research_cutoff}`\n"
+        + "- [Input hashes](materials_manifest.json) · [Execution log](run.log) · [API usage](usage.jsonl)\n"
+        + ("- [PDF draft](final_paper.pdf) · [LaTeX source](final_paper.tex)\n" if success else "")
+        + (f"- Error type: `{error_type}`\n" if error_type else "")
+        + "\nBefore publication, reconcile every reported number with original result files, "
+          "check claim limits in `raw_materials/claims.md`, and verify substantive citations "
+          "against the original papers. Model review scores do not certify scientific correctness.\n"
+    )
+    (base / "RUN_REPORT.md").write_text(report, encoding="utf-8")
+    print(f"{'Completed' if success else 'Failed'}; report: {base / 'RUN_REPORT.md'}")
+    return 0 if success else 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

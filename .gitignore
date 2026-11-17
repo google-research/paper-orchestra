@@ -5,3 +5,9 @@
 datasets/*
 paper_output*
 *.zip
+.env.*
+!.env.example
+.venv/
+__pycache__/
+outputs/
+usage*.jsonl

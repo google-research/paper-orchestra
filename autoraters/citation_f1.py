@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from utils.llm_backend_utils import DEFAULT_MODEL
+
 import re
 import os
 import requests
@@ -76,7 +78,7 @@ class ReferenceF1V1Evaluator:
         self,
         api_key: str = S2_API_KEY,
         log_folder: str = None,
-        model_name: str = "gemini-3.1-pro-preview",
+        model_name: str = DEFAULT_MODEL,
     ):
         # Semantic Scholar API endpoint
         self.S2_SEARCH_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
@@ -366,7 +368,7 @@ def get_citation_f1_metrics(
     generated_pdf: str,
     log_folder=None,
     gt_cache_path: str = None,
-    model_name: str = "gemini-3.1-pro-preview",
+    model_name: str = DEFAULT_MODEL,
 ):
     """
     Computes priority-based citation F1. Caches Ground Truth processing to avoid redundant LLM/API calls.
@@ -446,7 +448,7 @@ def generate_gt_citations_batch(
     progress_json_path: str = None,
     max_workers: int = 5,
     evaluator_log_folder: str = None,
-    model_name: str = "gemini-3.1-pro-preview",
+    model_name: str = DEFAULT_MODEL,
 ):
     """
     Given a folder of papers (e.g., cvpr2025), iterates through its subfolders.
@@ -663,7 +665,7 @@ def review_citation_f1_batch(
     output_folder: str = None,
     gen_paper_rel_path: str = "latex_writeup/final_paper.pdf",
     max_workers: int = 5,
-    model_name: str = "gemini-3.1-pro-preview",
+    model_name: str = DEFAULT_MODEL,
 ):
     all_results = {}
     all_results_dump_path = os.path.join(

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from utils.llm_backend_utils import DEFAULT_MODEL
+
 import os
 import subprocess
 import json
@@ -21,10 +23,8 @@ import traceback
 import subprocess
 import os.path as osp
 
-import pymupdf4llm  # type: ignore
 import pymupdf  # type: ignore
-import numpy as np
-import cv2
+from PIL import Image
 from pypdf import PdfReader  # type: ignore
 
 
@@ -128,7 +128,7 @@ Here is the paper text:
 
 
 def extract_reference_from_pdf_text(
-    paper_text: str, model_name: str = "gemini-3.1-pro-preview"
+    paper_text: str, model_name: str = DEFAULT_MODEL
 ) -> str:
     from utils.llm_backend_utils import call_llm_with_text_prompt
 
@@ -145,7 +145,7 @@ def extract_reference_from_pdf_text(
 
 
 def get_paper_references_from_pdf(
-    pdf_path: str, model_name: str = "gemini-3.1-pro-preview"
+    pdf_path: str, model_name: str = DEFAULT_MODEL
 ):
     try:
         paper_text = load_paper(pdf_path)
@@ -251,43 +251,20 @@ def compile_latex(cwd, pdf_file, texfile_name="template", timeout=30):
 
 
 def pdf_to_grid_images(pdf_path, output_dir, scale=2.0):
-    """Converts a PDF to 2x2 grid images of its pages.
-    Returns a list of paths to the generated grid images.
-    """
-    doc = pymupdf.open(pdf_path)
+    """Render 2x2 page grids for Claude, including PDFs with mixed page sizes."""
     os.makedirs(output_dir, exist_ok=True)
-
-    mat = pymupdf.Matrix(scale, scale)
-    pixmaps = []
-    for page in doc:
-        pix = page.get_pixmap(matrix=mat)
-        pixmaps.append(pix)
-
-    grid_image_paths = []
-
-    for i in range(0, len(pixmaps), 4):
-        chunk = pixmaps[i : i + 4]
-
-        img_list = []
-        for pix in chunk:
-            img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(
-                pix.h, pix.w, pix.n
-            )
-            img_list.append(img)
-
-        while len(img_list) < 4:
-            ref_img = img_list[0]
-            white_img = np.ones_like(ref_img) * 255
-            img_list.append(white_img)
-
-        row1 = np.hstack((img_list[0], img_list[1]))
-        row2 = np.hstack((img_list[2], img_list[3]))
-        grid = np.vstack((row1, row2))
-
-        grid_path = os.path.join(output_dir, f"grid_{i//4 + 1}.png")
-        grid_bgr = cv2.cvtColor(grid, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(grid_path, grid_bgr)
-
-        grid_image_paths.append(grid_path)
-
-    return grid_image_paths
+    image_paths = []
+    with pymupdf.open(pdf_path) as doc:
+        for start in range(0, len(doc), 4):
+            pages = []
+            for index in range(start, min(start + 4, len(doc))):
+                pix = doc[index].get_pixmap(matrix=pymupdf.Matrix(scale, scale), colorspace=pymupdf.csRGB, alpha=False)
+                pages.append(Image.frombytes("RGB", (pix.width, pix.height), pix.samples))
+            width, height = max(p.width for p in pages), max(p.height for p in pages)
+            grid = Image.new("RGB", (2 * width, 2 * height), "white")
+            for index, page in enumerate(pages):
+                grid.paste(page, ((index % 2) * width, (index // 2) * height))
+            path = os.path.join(output_dir, f"grid_{start // 4 + 1}.png")
+            grid.save(path)
+            image_paths.append(path)
+    return image_paths

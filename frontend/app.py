@@ -39,6 +39,7 @@ load_dotenv()
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from utils.llm_backend_utils import DEFAULT_MODEL
 from methods.paper_writer import write_single_paper
 from utils.pdf_utils import pdf_to_grid_images
 
@@ -142,7 +143,7 @@ def render_sidebar():
         except Exception as exception_object:
             st.sidebar.error(f"Error loading example: {exception_object}")
 
-    models = ["gemini-3.1-pro-preview", "gemini-3-flash-preview"]
+    models = [DEFAULT_MODEL]
     selected_model = st.sidebar.selectbox(
         "Select Model", models, disabled=st.session_state.locked
     )
@@ -152,9 +153,9 @@ def render_sidebar():
         "Select Template", templates, disabled=st.session_state.locked
     )
 
-    plotting_options = ["Yes", "No"]
+    plotting_options = ["No"]
     enable_plotting = st.sidebar.selectbox(
-        "Enable Figure Generation",
+        "Use supplied figures (automatic generation disabled)",
         plotting_options,
         index=0,
         disabled=st.session_state.locked,
@@ -345,6 +346,7 @@ def handle_live_execution(
                 run_directory,
                 "--latex_template_dir",
                 os.path.join(base_directory, "templates", selected_template),
+                "--stream_logs",
                 "--writer_model_name",
                 selected_model,
                 "--reflection_model_name",
@@ -362,7 +364,7 @@ def handle_live_execution(
                         "--plotting_model_name",
                         selected_model,
                         "--image_model_name",
-                        "gemini-3-pro-image-preview",
+                        "disabled",
                     ]
                 )
 

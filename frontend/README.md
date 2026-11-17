@@ -1,40 +1,10 @@
-# Paper Orchestra Frontend
+# Claude frontend
 
-This directory contains the Streamlit frontend for Paper Orchestra.
-
-## How to Launch the Demo Locally
-
-1. Ensure you have activated your environment and installed dependencies.
-2. Navigate to the project root directory:
-   ```bash
-   cd paper-orchestra
-   conda activate paper_orchestra
-   ```
-3. Run the Streamlit application:
-   ```bash
-   streamlit run frontend/app.py
-   ```
-4. Open the URL provided in the terminal (usually `http://localhost:8501` or similar) in your browser.
-
-## How to Kill Unfinished Writing Processes
-
-The frontend launches a background process (`paper_writing_cli.py`) to handle the paper generation. 
-
-### Automatic Cleanup
-On Linux, the application is configured to automatically kill the background process if the Streamlit server process is stopped. Simply pressing **Ctrl+C** in the terminal where you ran `streamlit run` should clean up the running pipeline.
-
-### Manual Cleanup
-If you disconnect from the frontend or the server stops unexpectedly without cleaning up, you may have orphan processes running in the background. You can kill them manually using:
+From the repository root:
 
 ```bash
-pkill -f paper_writing_cli.py
+pip install -r requirements-frontend.txt
+streamlit run frontend/app.py
 ```
 
-Or to find the process ID (PID) first:
-```bash
-pgrep -f paper_writing_cli.py
-```
-And then kill it:
-```bash
-kill <PID>
-```
+Configure the private `.env` as described in the root README. The frontend uses the same Claude backend, preserves author-provided figures, and disables automatic image generation. It passes `--stream_logs` to the CLI for live progress; Markdown reports and usage records remain in the run directory. The inherited email notification feature is optional and requires your SMTP settings. Browser interactions have not been validated by the offline unit tests.
