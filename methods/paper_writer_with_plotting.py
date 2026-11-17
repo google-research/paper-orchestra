@@ -32,6 +32,8 @@ from utils.common_utils import (
     create_log_folder,
 )
 
+from utils.resume_utils import LIT_OUTPUTS, stage_done
+
 
 def write_single_paper(
     base_dir,
@@ -44,6 +46,7 @@ def write_single_paper(
     image_model_name: str = "gemini-3-pro-image-preview",
     research_cutoff: str = "2024-11",
     plotting_max_critic_rounds: int = 3,
+    resume: bool = False,
 ):
     latex_writeup_dir = osp.join(base_dir, "latex_writeup")
     pdf_file = osp.join(base_dir, "final_paper.pdf")
@@ -51,7 +54,8 @@ def write_single_paper(
     time_log = {}
     time_log["Start_Time_Absolute"] = time.time()
 
-    if osp.exists(latex_writeup_dir):
+    # --resume keeps finished stages instead of deleting them.
+    if osp.exists(latex_writeup_dir) and not resume:
         shutil.rmtree(latex_writeup_dir)
     if osp.exists(pdf_file):
         os.remove(pdf_file)
@@ -101,13 +105,14 @@ def write_single_paper(
                 model_name=writer_model_name, cutoff_date=research_cutoff
             )
             outline_file_path = osp.join(base_dir, "outline.json")
-            outline_agent.run(
-                idea_file=idea_file_path,
-                experimental_log_file=experimental_log_file_path,
-                latex_template_file=latex_template_path,
-                conference_guidelines_file=guidelines_path,
-                output_filepath=outline_file_path,
-            )
+            if not stage_done(resume, "outline", outline_file_path):
+                outline_agent.run(
+                    idea_file=idea_file_path,
+                    experimental_log_file=experimental_log_file_path,
+                    latex_template_file=latex_template_path,
+                    conference_guidelines_file=guidelines_path,
+                    output_filepath=outline_file_path,
+                )
             time_log["OutlineAgent"] = time.time() - _t0
 
             ###############################################################################################
@@ -115,6 +120,8 @@ def write_single_paper(
             literature_agent_output_dir = osp.join(base_dir, "literature_agent_output")
 
             def run_literature_agent():
+                if stage_done(resume, "literature review", *[osp.join(literature_agent_output_dir, f) for f in LIT_OUTPUTS]):
+                    return True
                 print("[DEBUG] Starting run_literature_agent")
                 literature_agent = HybridLiteratureAgent(
                     idea_path=idea_file_path,
@@ -133,8 +140,11 @@ def write_single_paper(
                 return True
 
             def run_plotting_agent():
-                print("[DEBUG] Starting run_plotting_agent")
                 plotting_results_path = osp.join(base_dir, "plotting_results.json")
+                if stage_done(resume, "plotting", plotting_results_path):
+                    with open(plotting_results_path) as f:
+                        return json.load(f)
+                print("[DEBUG] Starting run_plotting_agent")
                 plotting_agent = PlottingAgent(
                     model_name=plotting_model_name,
                     image_model_name=image_model_name,
@@ -204,7 +214,8 @@ def write_single_paper(
                 model_name=writer_model_name,
             )
             raw_draft_tex_path = osp.join(latex_writeup_dir, "raw_draft_paper.tex")
-            section_writing_agent.run(output_path=raw_draft_tex_path)
+            if not stage_done(resume, "section writing", raw_draft_tex_path):
+                section_writing_agent.run(output_path=raw_draft_tex_path)
             time_log["SectionWritingAgent"] = time.time() - _t2
 
             ###############################################################################################

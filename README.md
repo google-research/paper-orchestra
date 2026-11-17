@@ -40,10 +40,41 @@ Acting like an orchestrated team of specialized agents, it handles outline gener
     VERTEX_AI_LOCATION=your_vertex_ai_location
     GEMINI_API_KEY=your_gemini_api_key
 
+    # Optional: stop a Gemini API run once the estimated spend (USD) passes this amount
+    PAPER_BUDGET_USD=0
+
     # if you want to run demo and send emails to yourself at the end, set these 2 fields as well
     SMTP_EMAIL=your_email
     SMTP_PASSWORD=your_password
     ```
+
+## Running Without an API Key: Claude Code or Codex
+
+Instead of the Gemini or OpenAI API, every LLM call can be sent to a locally installed and logged-in
+[Claude Code](https://docs.anthropic.com/en/docs/claude-code) (`claude`) or Codex (`codex`) CLI, so a run uses an
+existing Claude or ChatGPT subscription. Set in `.env` (see `.env.example` for all options):
+
+```env
+PAPER_LLM_BACKEND=claude   # or codex; leave unset to use the Gemini/OpenAI APIs
+```
+
+| Variable | Meaning |
+|---|---|
+| `PAPER_LLM_BACKEND` | `claude`, `codex`, or unset (Gemini/OpenAI APIs) |
+| `PAPER_CLI_MODEL` | Model for writing and reviewing. Claude: `opus` (default) or `sonnet`. Codex: unset for its default |
+| `PAPER_CLI_SEARCH_MODEL` | Model for literature-search calls (often 100+ per paper). Claude default: `sonnet` |
+| `PAPER_CLI_FALLBACK` | On a usage limit, switch to the other CLI (`codex` or `claude`) |
+| `PAPER_CLI_ON_LIMIT` | Without a fallback: `wait` (default, retry until the limit resets) or `stop` |
+| `PAPER_CLI_WAIT_MINUTES`, `PAPER_CLI_MAX_WAIT_HOURS` | Retry interval while waiting (default 10) and maximum total wait (default 6) |
+| `PAPER_CLI_CONCURRENCY`, `PAPER_CLI_TIMEOUT` | Parallel CLI sessions (default 3) and seconds per call (default 900) |
+
+Notes:
+- The literature agent's Google Search is replaced by the CLI's web search; paper metadata still comes from
+  Semantic Scholar.
+- PDF inputs are sent as extracted text, as the OpenAI path already does; images are passed as files.
+- Model-name arguments such as `--writer_model_name` are ignored in this mode.
+- If a run stops (usage limit, Ctrl+C), rerun the same command with `--resume` (see Key Arguments).
+- A small example input is in `examples/minimal_materials/`.
 
 ## Dataset
 
@@ -75,6 +106,7 @@ python paper_writing_cli.py \
 *   `--use_plotting`: Enable the plotting agent workflow to generate figures from code (Default: `False`).
 *   `--writer_model_name`: LLM for writer and literature agents.
 *   `--reflection_model_name`: LLM for reflection agents.
+*   `--resume`: Continue an interrupted run in the same `--output_dir`. Stages whose outputs already exist (outline, literature review, plots, draft) are skipped and the existing draft is kept; content refinement restarts from the draft. Without this flag, an existing output folder is overwritten.
 
 ### Interactive Demo
 
@@ -84,7 +116,7 @@ We provide an interactive Streamlit demo for the paper generation pipeline. For 
 
 *   `autoraters/`: Contains scripts for automated evaluation.
 *   `methods/`: Core logic for agents and pipeline execution.
-*   `templates/`: LaTeX templates for target conferences, you can add your own template by creating a new subfolder under this directory.
+*   `templates/`: LaTeX templates for target conferences (`cvpr2025`, `iclr2025`, and `usenix2019` for USENIX venues such as OSDI, NSDI and ATC), you can add your own template by creating a new subfolder under this directory.
 *   `utils/`: Utility functions for API calls, PDF handling, etc.
 
 ## Citation

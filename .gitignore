@@ -5,3 +5,7 @@
 datasets/*
 paper_output*
 *.zip
+__pycache__/
+
+# Local research inputs
+my_inputs/
