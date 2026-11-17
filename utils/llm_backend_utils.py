@@ -101,7 +101,9 @@ def call_llm_with_contents(
         generation_configs = {}
 
     if is_acp_model(model_name):
-        system_instruction = generation_configs.pop("system_instruction", None)
+        # Copy to avoid side-effects on caller's dictionary
+        configs_for_acp = dict(generation_configs) if generation_configs else {}
+        system_instruction = configs_for_acp.pop("system_instruction", None)
         if system_instruction:
             contents = [system_instruction, *contents]
         return call_acp_agent(
@@ -171,10 +173,12 @@ def call_llm_with_text_prompt(
         generation_configs = {}
 
     if is_acp_model(model_name):
+        # Copy to avoid side-effects on caller's dictionary
+        configs_for_acp = dict(generation_configs) if generation_configs else {}
         return call_acp_with_text_prompt(
             prompt=prompt,
             model_name=model_name,
-            system_instruction=generation_configs.pop("system_instruction", None),
+            system_instruction=configs_for_acp.pop("system_instruction", None),
             result_parsing_func=parser,
             check_parsed_response_not_none=check_parsed_response_not_none,
         )
@@ -229,10 +233,13 @@ def call_llm_with_images(
         generation_configs = {}
 
     if is_acp_model(model_name):
+        # Copy to avoid side-effects on caller's dictionary
+        configs_for_acp = dict(generation_configs) if generation_configs else {}
         return call_acp_with_images(
             prompt=prompt,
             images=images,
             model_name=model_name,
+            system_instruction=configs_for_acp.pop("system_instruction", None),
             result_parsing_func=parser,
             check_parsed_response_not_none=check_parsed_response_not_none,
         )

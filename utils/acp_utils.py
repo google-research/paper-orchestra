@@ -40,6 +40,11 @@ import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
+import dotenv
+
+dot_file = os.path.join(os.path.dirname(__file__), "../.env")
+dotenv.load_dotenv(dot_file)
+
 ACP_MODEL_PREFIX = "acp:"
 
 # Aliases -> argv for well-known ACP agents.
@@ -528,8 +533,11 @@ def _resource_link_for_path(path: str, schema) -> Any:
         if e == ext:
             mime = m
             break
-    return schema.ResourceLink(
-        uri=f"file://{abs_path}", name=os.path.basename(abs_path), mime_type=mime
+    return schema.ResourceContentBlock(
+        type="resource_link",
+        uri=f"file://{abs_path}",
+        name=os.path.basename(abs_path),
+        mime_type=mime,
     )
 
 
@@ -567,7 +575,8 @@ def _contents_to_blocks(contents, workspace: str, schema) -> List[Any]:
                 blocks.append(_resource_link_for_path(uri[len("file://"):], schema))
             else:
                 blocks.append(
-                    schema.ResourceLink(
+                    schema.ResourceContentBlock(
+                        type="resource_link",
                         uri=uri,
                         name=os.path.basename(uri),
                         mime_type=getattr(file_data, "mime_type", None),
@@ -688,10 +697,18 @@ def call_acp_with_images(
     prompt: str,
     images: List[str],
     model_name: str,
+    system_instruction: Optional[str] = None,
     **kwargs,
 ) -> Dict[str, Any]:
     schema, _, _, _ = _acp_imports()
-    blocks = [schema.TextContentBlock(type="text", text=prompt)]
+    blocks = []
+    if system_instruction:
+        blocks.append(
+            schema.TextContentBlock(
+                type="text", text=f"[System instruction]\n{system_instruction}"
+            )
+        )
+    blocks.append(schema.TextContentBlock(type="text", text=prompt))
     for image_path in images:
         blocks.append(_resource_link_for_path(image_path, schema))
     return call_acp_agent(
