@@ -65,21 +65,70 @@ git, so your unpublished work is not committed by accident.
 | Variable | Meaning |
 |---|---|
 | `PAPER_LLM_BACKEND` | `claude`, `codex`, or empty for the Gemini API |
-| `PAPER_CLI_MODEL` | Model for the CLI. Claude: `opus` (default) or `sonnet`. Codex: empty for its default |
+| `PAPER_CLI_MODEL` | Model for writing and reviewing. Claude: `opus` (default) or `sonnet`. Codex: empty for its default |
+| `PAPER_CLI_SEARCH_MODEL` | Model for the literature-search calls (100+ per paper). Claude default: `sonnet` |
+| `PAPER_CLI_FALLBACK` | When the main CLI hits its usage limit, switch to this one (`codex` or `claude`) |
+| `PAPER_CLI_FALLBACK_MODEL` | Model for the fallback CLI (optional) |
+| `PAPER_CLI_ON_LIMIT` | Without a fallback: `wait` (default) for the limit to reset, or `stop` |
+| `PAPER_CLI_WAIT_MINUTES` | While waiting, retry every this many minutes (default 10) |
+| `PAPER_CLI_MAX_WAIT_HOURS` | Give up waiting after this long (default 6) |
 | `PAPER_CLI_CONCURRENCY` | CLI sessions at once (default 3) |
 | `PAPER_CLI_TIMEOUT` | Seconds allowed per call (default 900) |
 | `PAPER_BUDGET_USD` | Gemini API mode only: stop once the estimated spend passes this amount (0 = no limit) |
 
+### What a run does, stage by stage
+
+| Stage | Calls (approx.) | Output in `--output_dir` | Kept by `--resume`? |
+|---|---|---|---|
+| 1. Outline | 1 | `outline.json` | yes |
+| 2. Literature review: web searches, then Introduction and Related Work | 20–120 small + 1 large | `literature_agent_output/` | yes |
+| 2b. Plots (only with `--use_plotting true`) | several per figure | `plotting_results.json`, `figures/` | yes |
+| 3. Section writing: the full draft | 1 large | `latex_writeup/raw_draft_paper.tex` | yes |
+| 4. Refinement: 3 rounds of reviews and rewrites, then a formatting pass | about 15–20 large | `content_refinement_workdir/`, `final_paper.pdf` | restarts from the draft |
+
+The search stage makes the most calls but they are small; stages 3 and 4 send the whole paper each time and use
+most of your quota.
+
+### If you hit a usage limit
+
+Claude and ChatGPT plans have rolling usage limits (for example Claude's 5-hour limit). This fork handles them:
+
+1. **Automatically, by default.** When the CLI reports a usage limit, the run **waits** and retries every
+   `PAPER_CLI_WAIT_MINUTES` until the limit resets (up to `PAPER_CLI_MAX_WAIT_HOURS`). You can leave it running.
+2. **Or switch tools.** With `PAPER_CLI_FALLBACK=codex` (or `claude`), the run moves to the other CLI as soon as
+   the first one is limited, and stays there.
+3. **Or stop and continue later.** Press Ctrl+C at any time, or set `PAPER_CLI_ON_LIMIT=stop`. Then run **the
+   same command again with `--resume`**:
+
+   ```bash
+   python paper_writing_cli.py \
+     --raw_materials_dir path/to/your_materials \
+     --latex_template_dir templates/iclr2025 \
+     --output_dir ./paper_output_mypaper \
+     --resume
+   ```
+
+   Stages whose output already exists are skipped (you will see `⏭️ Resume: skipping ...`). Use the **same**
+   `--output_dir`, materials and template.
+
+**Never rerun without `--resume` on an output folder you want to keep:** a normal run deletes the previous draft
+in that folder and starts over. To be safe, copy the folder first (`cp -a paper_output_mypaper backup_x`).
+
+To redo one stage, delete its output and resume: for example delete `latex_writeup/raw_draft_paper.tex` to
+rewrite the draft from the existing outline and literature review.
+
+To use less quota: `PAPER_CLI_MODEL=sonnet`, and keep `PAPER_CLI_SEARCH_MODEL` at `sonnet` (or `haiku`).
+
 ### Good to know
 
-- **Usage limits.** A full paper is roughly 50–80 calls with large prompts. If your subscription's usage limit
-  is reached, the run stops with the reason; a rerun starts from the beginning. `sonnet` uses less than `opus`.
-- **Time.** Each call starts a CLI session; a full paper takes roughly 30–90 minutes.
-- **Literature search** uses Claude's or Codex's web search in place of Google Search. Paper metadata still comes
-  from Semantic Scholar (no key needed).
+- **Time.** Each call starts a CLI session; a full paper takes roughly 1–2 hours of calls.
+- **Literature search** uses Claude's or Codex's web search in place of Google Search. Paper metadata then comes
+  from Semantic Scholar; without a key its rate limit drops many candidates, so a free
+  `SEMANTIC_SCHOLAR_API_KEY` gives a larger bibliography.
 - **PDFs.** Where the pipeline sends Gemini a compiled PDF, the CLI receives its extracted text (as the repo's
   OpenAI path already does). Page images are still passed as images.
-- **Model flags** such as `--writer_model_name` are ignored in CLI mode.
+- **Model flags** such as `--writer_model_name` are ignored in CLI mode; the review log still prints the Gemini
+  model name, which can be ignored.
 - **Check the output.** Citations come from web search and Semantic Scholar, and the text is generated; verify
   every claim, number and reference. Check your venue's policy on AI-generated text before submitting.
 - **Data leaves your machine.** Your materials are sent to Anthropic (Claude) or OpenAI (Codex).
@@ -87,7 +136,10 @@ git, so your unpublished work is not committed by accident.
 ### What was changed from upstream
 
 - `utils/cli_backend.py` (new): runs each call through `claude -p` or `codex exec`, passes images as files,
-  turns on web search for the literature agent, limits concurrency, and stops on usage-limit or login errors.
+  turns on web search for the literature agent with its own (cheaper) model, limits concurrency, and on a usage
+  limit waits, switches CLI or stops; login errors stop the run.
+- `--resume` flag (`paper_writing_cli.py`, `methods/paper_writer*.py`, new `utils/resume_utils.py`): skips stages
+  whose output already exists and no longer deletes the previous draft when resuming.
 - `utils/gemini_utils.py`: `call_gemini_with_contents`, which every Gemini call goes through, hands calls to the
   CLI backend when `PAPER_LLM_BACKEND` is set. Also: the Gemini client uses API version `v1beta` (preview models
   are not served on `v1`), and an optional spend guard (`PAPER_BUDGET_USD`) logs and caps estimated Gemini cost.

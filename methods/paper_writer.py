@@ -29,6 +29,8 @@ from utils.common_utils import (
     create_log_folder,
 )
 
+from utils.resume_utils import LIT_OUTPUTS, stage_done
+
 
 def write_single_paper(
     base_dir,
@@ -38,11 +40,13 @@ def write_single_paper(
     writer_model_name: str = "gemini-3.1-pro-preview",
     reflection_model_name: str = "gemini-3.1-pro-preview",
     research_cutoff: str = "2024-11",
+    resume: bool = False,
 ):
     latex_writeup_dir = osp.join(base_dir, "latex_writeup")
     pdf_file = osp.join(base_dir, "final_paper.pdf")
 
-    if osp.exists(latex_writeup_dir):
+    # Local addition: --resume keeps finished stages instead of deleting them.
+    if osp.exists(latex_writeup_dir) and not resume:
         shutil.rmtree(latex_writeup_dir)
     if osp.exists(pdf_file):
         os.remove(pdf_file)
@@ -94,13 +98,14 @@ def write_single_paper(
                 model_name=writer_model_name, cutoff_date=research_cutoff
             )
             outline_file_path = osp.join(base_dir, "outline.json")
-            outline_agent.run(
-                idea_file=idea_file_path,
-                experimental_log_file=experimental_log_file_path,
-                latex_template_file=latex_template_path,
-                conference_guidelines_file=guidelines_path,
-                output_filepath=outline_file_path,
-            )
+            if not stage_done(resume, "outline", outline_file_path):
+                outline_agent.run(
+                    idea_file=idea_file_path,
+                    experimental_log_file=experimental_log_file_path,
+                    latex_template_file=latex_template_path,
+                    conference_guidelines_file=guidelines_path,
+                    output_filepath=outline_file_path,
+                )
 
             ###############################################################################################
             # Step 2: Call HybridLiteratureAgent
@@ -114,10 +119,11 @@ def write_single_paper(
                 model_name=writer_model_name,
                 max_workers=3,
             )
-            literature_agent.run(
-                outline_path=outline_file_path,
-                cutoff_date=research_cutoff,
-            )
+            if not stage_done(resume, "literature review", *[osp.join(literature_agent_output_dir, f) for f in LIT_OUTPUTS]):
+                literature_agent.run(
+                    outline_path=outline_file_path,
+                    cutoff_date=research_cutoff,
+                )
             shutil.copy(
                 osp.join(literature_agent_output_dir, "outline_v1.json"),
                 outline_file_path,
@@ -147,7 +153,8 @@ def write_single_paper(
                 model_name=writer_model_name,
             )
             raw_draft_tex_path = osp.join(latex_writeup_dir, "raw_draft_paper.tex")
-            section_writing_agent.run(output_path=raw_draft_tex_path)
+            if not stage_done(resume, "section writing", raw_draft_tex_path):
+                section_writing_agent.run(output_path=raw_draft_tex_path)
 
             ###############################################################################################
             # Step 4: Content Reflection

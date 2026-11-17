@@ -313,7 +313,11 @@ def call_gemini_with_contents(
         except Exception as e:
             error_msg = str(e)
             if type(e).__name__ == "CliFatalError":
-                print(f"\n🛑 CLI backend stopped (not retrying): {error_msg}", flush=True)
+                print(
+                    f"\n🛑 CLI backend stopped (not retrying): {error_msg}\n"
+                    "   Finished stages are kept. Run the same command again with --resume.",
+                    flush=True,
+                )
                 os._exit(4)
             print(
                 f"Warning: Gemini API call failed on attempt {attempt + 1} of {max_retries}. Error: {error_msg}",
