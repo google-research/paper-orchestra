@@ -5,5 +5,10 @@
 datasets/*
 paper_output*
 *.zip
-# Your own research inputs stay local
+__pycache__/
+
+# Project-specific inputs, outputs and notes stay local
 my_inputs/
+paper_output_llm_systems/
+paper_output_osdi/
+SETUP-GUIDE.md

@@ -53,6 +53,10 @@ python paper_writing_cli.py \
   --output_dir ./paper_output_mypaper
 ```
 
+Templates: `templates/iclr2025`, `templates/cvpr2025`, and `templates/usenix2019` (this fork; two-column USENIX
+format for OSDI, NSDI and ATC). To add rules for one paper (scope, claims to avoid), put them in your
+`idea_sparse.md`, or copy a template folder under `my_inputs/` and pass that path.
+
 The paper is written to `paper_output_mypaper/`. Anything under `my_inputs/` and `paper_output*/` is ignored by
 git, so your unpublished work is not committed by accident.
 
@@ -87,7 +91,9 @@ git, so your unpublished work is not committed by accident.
 - `utils/gemini_utils.py`: `call_gemini_with_contents`, which every Gemini call goes through, hands calls to the
   CLI backend when `PAPER_LLM_BACKEND` is set. Also: the Gemini client uses API version `v1beta` (preview models
   are not served on `v1`), and an optional spend guard (`PAPER_BUDGET_USD`) logs and caps estimated Gemini cost.
-- `.env.example` (new), and `my_inputs/` added to `.gitignore`.
+- `templates/usenix2019/` (new): USENIX two-column template (`usenix2019_v3.sty`, the official sample files,
+  `template.tex` and `guidelines.md` for the writer).
+- `.env.example` (new); `my_inputs/`, `paper_output*/` and `__pycache__/` are ignored by git.
 
 The original README follows.
 
