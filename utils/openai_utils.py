@@ -199,11 +199,12 @@ def get_openai_image_part_from_path(image_path: str):
     with open(image_path, "rb") as image_file:
         base64_image = base64.b64encode(image_file.read()).decode("utf-8")
 
+    mime_type = get_image_mime_type(image_path, default="image/jpeg")
     image_content = [
         {
             "type": "image_url",
             "image_url": {
-                "url": f"data:{get_image_mime_type(image_path)};base64,{base64_image}",
+                "url": f"data:{mime_type};base64,{base64_image}",
             },
         }
     ]

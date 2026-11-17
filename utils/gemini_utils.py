@@ -265,7 +265,8 @@ def call_gemini_with_images(
             img_bytes = f.read()
         llm_contents.append(
             types.Part.from_bytes(
-                data=img_bytes, mime_type=get_image_mime_type(image_path)
+                data=img_bytes,
+                mime_type=get_image_mime_type(image_path, default="image/png"),
             )
         )
 
