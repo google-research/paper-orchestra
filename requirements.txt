@@ -1,3 +1,4 @@
+agent-client-protocol
 google-genai
 joblib
 json_repair

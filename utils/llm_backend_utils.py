@@ -12,11 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import json
 from typing import Optional, Callable, Dict, Any
 
 from google.genai import types
 
+from utils.acp_utils import (
+    call_acp_agent,
+    call_acp_with_images,
+    call_acp_with_pdf,
+    call_acp_with_text_prompt,
+    is_acp_model,
+)
 from utils.gemini_utils import (
     call_gemini_with_text_prompt,
     parse_gemini_json_results,
@@ -34,6 +42,98 @@ from utils.pdf_utils import load_paper
 
 def identity_parse(response: str):
     return response
+
+
+def _is_openai_model(model_name: str) -> bool:
+    name = model_name.lower()
+    return "gpt" in name or "o1" in name or "o3" in name
+
+
+def _contents_to_openai_content(contents) -> list:
+    """Convert google.genai Part/Content objects to OpenAI chat content parts."""
+    content = []
+
+    def add_part(part) -> None:
+        text = getattr(part, "text", None)
+        if text:
+            content.append({"type": "text", "text": text})
+            return
+        inline = getattr(part, "inline_data", None)
+        if inline is not None and getattr(inline, "data", None):
+            mime = getattr(inline, "mime_type", None) or "image/png"
+            b64 = base64.b64encode(inline.data).decode("utf-8")
+            content.append(
+                {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}}
+            )
+            return
+        if isinstance(part, str):
+            content.append({"type": "text", "text": part})
+
+    for item in contents or []:
+        parts = getattr(item, "parts", None)
+        if parts is not None:
+            for p in parts:
+                add_part(p)
+        else:
+            add_part(item)
+    return content
+
+
+def call_llm_with_contents(
+    contents,
+    model_name: str,
+    generation_configs: Optional[Dict[str, Any]] = None,
+    check_parsed_response_not_none: bool = True,
+    return_json: bool = True,
+    result_parsing_func: Optional[Callable] = None,
+) -> Dict[str, Any]:
+    """
+    Unified function to call Gemini, OpenAI, or ACP agents with structured
+    contents (google.genai Part/Content objects or plain strings).
+    """
+    parser = (
+        result_parsing_func
+        if result_parsing_func is not None
+        else get_llm_parser(model_name, return_json)
+    )
+
+    if generation_configs is None:
+        generation_configs = {}
+
+    if is_acp_model(model_name):
+        system_instruction = generation_configs.pop("system_instruction", None)
+        if system_instruction:
+            contents = [system_instruction, *contents]
+        return call_acp_agent(
+            contents,
+            model_name=model_name,
+            result_parsing_func=parser,
+            check_parsed_response_not_none=check_parsed_response_not_none,
+        )
+
+    if _is_openai_model(model_name):
+        system_prompt = None
+        configs_for_openai = dict(generation_configs) if generation_configs else {}
+        if "system_instruction" in configs_for_openai:
+            system_prompt = configs_for_openai.pop("system_instruction")
+        if "temperature" in configs_for_openai:
+            configs_for_openai.pop("temperature")
+        return call_openai_models_with_content(
+            content=_contents_to_openai_content(contents),
+            model_name=model_name,
+            generation_configs=configs_for_openai,
+            result_parsing_func=parser,
+            check_parsed_response_not_none=check_parsed_response_not_none,
+            system_prompt=system_prompt,
+        )
+
+    return call_gemini_with_contents(
+        contents=contents,
+        model_name=model_name,
+        generation_configs=generation_configs,
+        result_parsing_func=parser,
+        check_parsed_response_not_none=check_parsed_response_not_none,
+    )
 
 
 def get_llm_parser(model_name: str, return_json: bool = True) -> Callable:
@@ -70,11 +170,16 @@ def call_llm_with_text_prompt(
     if generation_configs is None:
         generation_configs = {}
 
-    if (
-        "gpt" in model_name.lower()
-        or "o1" in model_name.lower()
-        or "o3" in model_name.lower()
-    ):
+    if is_acp_model(model_name):
+        return call_acp_with_text_prompt(
+            prompt=prompt,
+            model_name=model_name,
+            system_instruction=generation_configs.pop("system_instruction", None),
+            result_parsing_func=parser,
+            check_parsed_response_not_none=check_parsed_response_not_none,
+        )
+
+    if _is_openai_model(model_name):
         system_prompt = None
         configs_for_openai = dict(generation_configs) if generation_configs else {}
         if "system_instruction" in configs_for_openai:
@@ -123,11 +228,16 @@ def call_llm_with_images(
     if generation_configs is None:
         generation_configs = {}
 
-    if (
-        "gpt" in model_name.lower()
-        or "o1" in model_name.lower()
-        or "o3" in model_name.lower()
-    ):
+    if is_acp_model(model_name):
+        return call_acp_with_images(
+            prompt=prompt,
+            images=images,
+            model_name=model_name,
+            result_parsing_func=parser,
+            check_parsed_response_not_none=check_parsed_response_not_none,
+        )
+
+    if _is_openai_model(model_name):
         system_prompt = None
         # Copy to avoid side-effects on caller's dictionary
         configs_for_openai = dict(generation_configs) if generation_configs else {}
@@ -181,11 +291,17 @@ def call_llm_with_pdf(
         else get_llm_parser(model_name, return_json)
     )
 
-    if (
-        "gpt" in model_name.lower()
-        or "o1" in model_name.lower()
-        or "o3" in model_name.lower()
-    ):
+    if is_acp_model(model_name):
+        return call_acp_with_pdf(
+            pdf_path=pdf_path,
+            prompt=prompt,
+            model_name=model_name,
+            system_instruction=system_instruction,
+            result_parsing_func=parser,
+            check_parsed_response_not_none=check_parsed_response_not_none,
+        )
+
+    if _is_openai_model(model_name):
         paper_text = load_paper(pdf_path, min_size=100)
         full_prompt = f"Paper Content:\n{paper_text}\n\nTask:\n{prompt}"
 
