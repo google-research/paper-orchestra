@@ -142,7 +142,7 @@ def render_sidebar():
         except Exception as exception_object:
             st.sidebar.error(f"Error loading example: {exception_object}")
 
-    models = ["gemini-3.1-pro-preview", "gemini-3-flash-preview"]
+    models = ["gemini-3.1-pro-preview", "gemini-3-flash-preview", "acp:devin"]
     selected_model = st.sidebar.selectbox(
         "Select Model", models, disabled=st.session_state.locked
     )
@@ -362,7 +362,11 @@ def handle_live_execution(
                         "--plotting_model_name",
                         selected_model,
                         "--image_model_name",
-                        "gemini-3-pro-image-preview",
+                        (
+                            selected_model
+                            if selected_model.startswith("acp:")
+                            else "gemini-3-pro-image-preview"
+                        ),
                     ]
                 )
 

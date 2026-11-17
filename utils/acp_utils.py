@@ -736,3 +736,71 @@ def call_acp_with_pdf(
     return call_acp_agent(
         blocks, model_name, contents_are_acp_blocks=True, **kwargs
     )
+
+
+def generate_diagram_with_acp(
+    prompt: str,
+    model_name: str,
+    system_instruction: Optional[str] = None,
+    aspect_ratio: str = "16:9",
+    workspace_root: Optional[str] = None,
+    max_retries: int = 5,
+    base_interval_sec: int = 5,
+) -> str:
+    """Generate a diagram via an ACP agent and return it as a base64 string.
+
+    ACP has no image-generation channel, so the agent is asked to render the
+    image to disk inside the workspace (matplotlib, graphviz, PIL, etc.) and
+    the resulting file is read back and base64-encoded, matching the return
+    contract of generate_image_with_gemini.
+    """
+    import base64 as _base64
+
+    schema, _, _, _ = _acp_imports()
+    workspace = os.path.realpath(workspace_root or _get_workspace_root())
+    blob_dir = os.path.join(workspace, ".acp_blobs")
+    os.makedirs(blob_dir, exist_ok=True)
+    output_path = os.path.join(blob_dir, f"diagram_{uuid.uuid4().hex}.png")
+
+    instruction_lines = [
+        f"Create a diagram image and save it to this exact path: {output_path}",
+        f"Desired aspect ratio: {aspect_ratio}.",
+        "Write and run code (e.g. Python matplotlib/PIL, graphviz, or another "
+        "tool already available) to render it. Verify the file exists and is a "
+        "valid image before finishing. Do not include figure titles in the "
+        "image. Reply with only the output file path once done.",
+    ]
+    if system_instruction:
+        instruction_lines.insert(0, f"[System instruction]\n{system_instruction}")
+
+    blocks = [
+        schema.TextContentBlock(type="text", text="\n".join(instruction_lines)),
+        schema.TextContentBlock(type="text", text=prompt),
+    ]
+
+    for attempt in range(max_retries):
+        try:
+            call_acp_agent(
+                blocks,
+                model_name,
+                workspace_root=workspace,
+                contents_are_acp_blocks=True,
+                max_retries=1,
+            )
+            if not os.path.isfile(output_path):
+                raise RuntimeError(
+                    f"ACP agent did not create the diagram file: {output_path}"
+                )
+            with open(output_path, "rb") as f:
+                return _base64.b64encode(f.read()).decode("utf-8")
+        except Exception as e:
+            print(
+                f"Warning: ACP diagram generation failed on attempt "
+                f"{attempt + 1} of {max_retries}. Error: {e}"
+            )
+            if attempt + 1 == max_retries:
+                raise
+            delay = base_interval_sec * (2 ** (attempt - 1)) if attempt > 0 else 0
+            if delay > 0:
+                time.sleep(delay)
+    raise RuntimeError("All ACP diagram generation attempts failed.")

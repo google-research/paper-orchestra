@@ -110,6 +110,14 @@ File writes and terminal working directories are confined to the output folder.
 Note that an ACP turn is a full agent loop, so ACP-backed stages are slower than
 direct API calls.
 
+Two behaviors adapt when `acp:` models are selected:
+
+* `--image_model_name acp:devin` has no image-generation API, so the agent
+  renders diagrams to disk with its own tools (e.g. matplotlib) instead.
+* The literature-review discovery calls normally use Gemini's Google Search
+  grounding; with an `acp:` writer model the agent performs the web search
+  itself, so no Gemini credentials are needed.
+
 ### Interactive Demo
 
 We provide an interactive Streamlit demo for the paper generation pipeline. For instructions on how to run and use it, please refer to the [README.md](frontend/README.md) in the `frontend` directory.

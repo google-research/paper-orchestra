@@ -22,6 +22,7 @@ import json_repair
 from typing import Dict, Any, List, Tuple
 from google.genai import types
 
+from utils.acp_utils import generate_diagram_with_acp, is_acp_model
 from utils.gemini_utils import generate_image_with_gemini
 from utils.llm_backend_utils import (
     call_llm_with_text_prompt,
@@ -670,6 +671,16 @@ def generate_figure_visuals(
     else:
         # Prompt for diagram image generation
         prompt_text = f"Render an image based on the following detailed description: {figure_description}\n Note that do not include figure titles in the image. Diagram: "
+
+        # ACP has no image-generation channel; the agent renders the diagram
+        # to disk with its own tools instead.
+        if is_acp_model(image_model_name):
+            return generate_diagram_with_acp(
+                prompt=prompt_text,
+                model_name=image_model_name,
+                system_instruction=DIAGRAM_VISUALIZER_AGENT_SYSTEM_PROMPT,
+                aspect_ratio=aspect_ratio,
+            )
 
         return generate_image_with_gemini(
             model_name=image_model_name,

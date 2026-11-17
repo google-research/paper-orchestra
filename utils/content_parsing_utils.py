@@ -33,11 +33,13 @@ Input Citation:
 Title:"""
 
 
-def extract_paper_title_from_citation(citation_text: str):
+def extract_paper_title_from_citation(
+    citation_text: str, model_name: str = "gemini-3-flash-preview"
+):
     instruction = extract_title_prompt_template.format(citation_text=citation_text)
     response_dict = call_llm_with_text_prompt(
         prompt=instruction,
-        model_name="gemini-3-flash-preview",
+        model_name=model_name,
         check_parsed_response_not_none=False,
     )
     return response_dict["raw_response"].strip()

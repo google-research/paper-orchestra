@@ -23,9 +23,8 @@ from google.genai import types
 import pymupdf  # type: ignore
 
 from utils.pdf_utils import load_paper
-from utils.llm_backend_utils import get_llm_parser
-from utils.gemini_utils import call_gemini_with_contents
-from utils.openai_utils import call_openai_models_with_content
+from utils.acp_utils import is_acp_model
+from utils.llm_backend_utils import call_llm_with_contents, get_llm_parser
 from autoraters.prompts.sxs_quality_prompts import sxs_paper_quality_system_prompt
 
 # Global lock for file writing
@@ -63,49 +62,36 @@ def rate_sxs_paper_quality(
 
     while (not succeed) and cur_try < max_retries:
         try:
-            if is_openai:
-                # Setup OpenAI content payload
+            if is_openai or is_acp_model(model_name):
+                # Extracted text + rendered page images for non-Gemini backends
                 paper1_text = load_paper(paper1_path, min_size=100)
                 paper2_text = load_paper(paper2_path, min_size=100)
 
-                content = []
-                content.append(
-                    {"type": "text", "text": "Paper 1 Text:\n" + paper1_text}
-                )
-                content.append({"type": "text", "text": "Paper 1 Visual Pages:"})
-
+                contents = [
+                    types.Part.from_text(text="Paper 1 Text:\n" + paper1_text),
+                    types.Part.from_text(text="Paper 1 Visual Pages:"),
+                ]
                 for b64_img in get_pdf_page_images_base64(paper1_path, max_pages=15):
-                    content.append(
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"},
-                        }
+                    contents.append(
+                        types.Part.from_bytes(
+                            data=base64.b64decode(b64_img), mime_type="image/jpeg"
+                        )
                     )
 
-                content.append(
-                    {"type": "text", "text": "Paper 2 Text:\n" + paper2_text}
+                contents.append(
+                    types.Part.from_text(text="Paper 2 Text:\n" + paper2_text)
                 )
-                content.append({"type": "text", "text": "Paper 2 Visual Pages:"})
-
+                contents.append(types.Part.from_text(text="Paper 2 Visual Pages:"))
                 for b64_img in get_pdf_page_images_base64(paper2_path, max_pages=15):
-                    content.append(
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"},
-                        }
+                    contents.append(
+                        types.Part.from_bytes(
+                            data=base64.b64decode(b64_img), mime_type="image/jpeg"
+                        )
                     )
 
-                content.append({"type": "text", "text": prompt_text})
-
-                response_dict = call_openai_models_with_content(
-                    content=content,
-                    model_name=model_name,
-                    result_parsing_func=get_llm_parser(model_name, return_json=True),
-                    check_parsed_response_not_none=True,
-                    system_prompt=sxs_paper_quality_system_prompt,
-                )
+                contents.append(types.Part.from_text(text=prompt_text))
             else:
-                # Setup Gemini
+                # Gemini reads the raw PDFs natively
                 with open(paper1_path, "rb") as f1, open(paper2_path, "rb") as f2:
                     pdf1_bytes = f1.read()
                     pdf2_bytes = f2.read()
@@ -118,16 +104,16 @@ def rate_sxs_paper_quality(
                     types.Part.from_text(text="\n\n" + prompt_text),
                 ]
 
-                response_dict = call_gemini_with_contents(
-                    contents=contents,
-                    model_name=model_name,
-                    result_parsing_func=get_llm_parser(model_name, return_json=True),
-                    generation_configs={
-                        "temperature": 0.0,
-                        "system_instruction": sxs_paper_quality_system_prompt,
-                    },
-                    check_parsed_response_not_none=True,
-                )
+            response_dict = call_llm_with_contents(
+                contents=contents,
+                model_name=model_name,
+                result_parsing_func=get_llm_parser(model_name, return_json=True),
+                generation_configs={
+                    "temperature": 0.0,
+                    "system_instruction": sxs_paper_quality_system_prompt,
+                },
+                check_parsed_response_not_none=True,
+            )
 
             succeed = True
             return (
