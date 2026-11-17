@@ -3,6 +3,10 @@
 <div align="center"><sup>1</sup>Google Cloud AI Research</div>
 <br><br>
 
+> **This fork runs PaperOrchestra on Claude Code or Codex, with no API key.**
+> Jump to [Getting started](#getting-started-with-claude-code-or-codex). The original Gemini-only instructions are
+> further down.
+
 PaperOrchestra is a multi-agent framework for automated AI research paper writing. It flexibly transforms unconstrained pre-writing materials (ideas and experimental logs) into submission-ready LaTeX manuscripts, including comprehensive literature synthesis and generated visuals, such as plots and conceptual diagrams.
 
 Acting like an orchestrated team of specialized agents, it handles outline generation, literature review, section writing, content refinement, and plotting to close the gap between raw research materials and submission ready papers.
@@ -25,7 +29,20 @@ switch that sends every LLM call to the **Claude Code** or **Codex** command-lin
 to, so a run uses your Claude or ChatGPT subscription instead of a paid Gemini API key. Nothing else in the
 pipeline changes.
 
-### Quick start
+### Getting started with Claude Code or Codex
+
+**Step 1. Check you have the tools.** Each command should print a version:
+
+```bash
+claude --version      # Claude Code, logged in to your Claude account   (or)
+codex --version       # Codex CLI, logged in to your ChatGPT account
+pdflatex --version    # LaTeX, e.g. TeX Live (sudo apt install texlive-full on Ubuntu)
+conda --version       # Miniconda or Anaconda
+```
+
+You need **one** of `claude` or `codex`, plus `pdflatex` (which comes with `bibtex`) and `conda`.
+
+**Step 2. Install.**
 
 ```bash
 git clone https://github.com/Tusherbhomik/paper-orchestra.git
@@ -33,32 +50,49 @@ cd paper-orchestra
 conda create -n paper_orchestra python=3.11 -y
 conda activate paper_orchestra
 pip install -r requirements.txt
-cp .env.example .env          # PAPER_LLM_BACKEND=claude is already set
+cp .env.example .env
 ```
 
-You also need:
-- **Claude Code** (`claude` on your PATH, logged in), or **Codex** (`codex` on your PATH, logged in) with
-  `PAPER_LLM_BACKEND=codex` in `.env`;
-- **LaTeX** with `pdflatex` and `bibtex` (for example TeX Live), used to compile the paper.
+`.env` is set to Claude. For Codex, open `.env` and change the line to `PAPER_LLM_BACKEND=codex`.
 
-Put your materials in a folder with two files, `idea_sparse.md` (problem, idea, method, contributions) and
-`experimental_log.md` (setup and every number you want in the paper, as tables). Figures are optional: add a
-`figures/` subfolder with the image files and an `info.json` listing them, for example
-`[{"name": "result.png", "caption": "What the figure shows."}]`. Then run:
+**Step 3. Try the example.** A small made-up input is included in `examples/minimal_materials/`:
 
 ```bash
 python paper_writing_cli.py \
-  --raw_materials_dir path/to/your_materials \
-  --latex_template_dir templates/iclr2025 \
+  --raw_materials_dir examples/minimal_materials \
+  --latex_template_dir templates/usenix2019 \
+  --output_dir ./paper_output_example
+```
+
+You will see lines like `🤖 claude/opus call 1: ...`. When it finishes, open
+`paper_output_example/final_paper.pdf`. A full run is long (see the stage table below); press Ctrl+C at any time
+and continue later with `--resume` (Step 5).
+
+**Step 4. Write your own paper.** Make a folder, for example `my_inputs/mypaper/` (git ignores `my_inputs/`),
+with two files modelled on the example:
+
+| File | What to put in it |
+|---|---|
+| `idea_sparse.md` | Problem, hypothesis, approach, contributions, and what must **not** be claimed |
+| `experimental_log.md` | Setup, and **every number** you want in the paper, as tables. The writer only sees what is here |
+| `figures/` (optional) | Your figure images (`.png`, `.jpg`) and an `info.json`: `[{"name": "result.png", "caption": "What it shows."}]` |
+
+Then run, choosing a template (`templates/usenix2019` for OSDI/NSDI/ATC, `templates/iclr2025`,
+`templates/cvpr2025`):
+
+```bash
+python paper_writing_cli.py \
+  --raw_materials_dir my_inputs/mypaper \
+  --latex_template_dir templates/usenix2019 \
   --output_dir ./paper_output_mypaper
 ```
 
-Templates: `templates/iclr2025`, `templates/cvpr2025`, and `templates/usenix2019` (this fork; two-column USENIX
-format for OSDI, NSDI and ATC). To add rules for one paper (scope, claims to avoid), put them in your
-`idea_sparse.md`, or copy a template folder under `my_inputs/` and pass that path.
+Without a `figures/` folder you get a warning; add `--use_plotting true` to have figures generated, or ignore it.
+Output folders (`paper_output*/`) are ignored by git, so your unpublished work is not committed by accident.
 
-The paper is written to `paper_output_mypaper/`. Anything under `my_inputs/` and `paper_output*/` is ignored by
-git, so your unpublished work is not committed by accident.
+**Step 5. If it stops (usage limit, Ctrl+C, crash), continue with `--resume`.** Run the same command with the same
+`--output_dir` and add `--resume`; finished stages are skipped. Details in
+[If you hit a usage limit](#if-you-hit-a-usage-limit).
 
 ### Settings (`.env`)
 
@@ -123,8 +157,8 @@ To use less quota: `PAPER_CLI_MODEL=sonnet`, and keep `PAPER_CLI_SEARCH_MODEL` a
 
 - **Time.** Each call starts a CLI session; a full paper takes roughly 1–2 hours of calls.
 - **Literature search** uses Claude's or Codex's web search in place of Google Search. Paper metadata then comes
-  from Semantic Scholar; without a key its rate limit drops many candidates, so a free
-  `SEMANTIC_SCHOLAR_API_KEY` gives a larger bibliography.
+  from Semantic Scholar; without a key it is rate-limited and may drop candidates, so a free
+  `SEMANTIC_SCHOLAR_API_KEY` can give a larger bibliography.
 - **PDFs.** Where the pipeline sends Gemini a compiled PDF, the CLI receives its extracted text (as the repo's
   OpenAI path already does). Page images are still passed as images.
 - **Model flags** such as `--writer_model_name` are ignored in CLI mode; the review log still prints the Gemini
@@ -132,6 +166,19 @@ To use less quota: `PAPER_CLI_MODEL=sonnet`, and keep `PAPER_CLI_SEARCH_MODEL` a
 - **Check the output.** Citations come from web search and Semantic Scholar, and the text is generated; verify
   every claim, number and reference. Check your venue's policy on AI-generated text before submitting.
 - **Data leaves your machine.** Your materials are sent to Anthropic (Claude) or OpenAI (Codex).
+
+### Troubleshooting
+
+| You see | What to do |
+|---|---|
+| `⏳ ... usage limit ... Waiting` | Normal: it waits for your limit to reset. Or set `PAPER_CLI_FALLBACK=codex`, or Ctrl+C and `--resume` later |
+| `out of usage credits` / `model_requires_usage_credits` | Your plan has no access to that Claude model; set `PAPER_CLI_MODEL=sonnet` (or `opus`) |
+| `🛑 CLI backend stopped` with a login message | Run `claude` (or `codex`) once in a terminal and log in, then `--resume` |
+| `claude: command not found` / `codex: command not found` | Install the CLI and make sure it is on your PATH, or switch `PAPER_LLM_BACKEND` |
+| `WARNING: No figures ... detected` | Add a `figures/` folder with `info.json`, or use `--use_plotting true`, or ignore it |
+| LaTeX errors, or no PDF | Check `pdflatex --version`; install a full TeX distribution (e.g. `texlive-full`) |
+| Very few references in the paper | Add a free `SEMANTIC_SCHOLAR_API_KEY` to `.env`, delete `literature_agent_output/` and `latex_writeup/raw_draft_paper.tex` in the output folder, and `--resume` |
+| `404 NOT_FOUND ... gemini` | You are in Gemini API mode; set `PAPER_LLM_BACKEND=claude` or `codex` in `.env` |
 
 ### What was changed from upstream
 
@@ -145,9 +192,11 @@ To use less quota: `PAPER_CLI_MODEL=sonnet`, and keep `PAPER_CLI_SEARCH_MODEL` a
   are not served on `v1`), and an optional spend guard (`PAPER_BUDGET_USD`) logs and caps estimated Gemini cost.
 - `templates/usenix2019/` (new): USENIX two-column template (`usenix2019_v3.sty`, the official sample files,
   `template.tex` and `guidelines.md` for the writer).
+- `examples/minimal_materials/` (new): a small example input.
 - `.env.example` (new); `my_inputs/`, `paper_output*/` and `__pycache__/` are ignored by git.
 
-The original README follows.
+The original README follows. Its Installation section is for the **Gemini API** only; for Claude Code or Codex
+follow [Getting started](#getting-started-with-claude-code-or-codex) above.
 
 ## Installation
 
