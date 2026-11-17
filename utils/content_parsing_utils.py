@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .gemini_utils import call_gemini_with_text_prompt
+from .llm_backend_utils import call_llm_with_text_prompt
 
 extract_title_prompt_template = """You are an expert bibliographic parser. Extract the full research paper title from the messy citation text below.
 
@@ -35,7 +35,7 @@ Title:"""
 
 def extract_paper_title_from_citation(citation_text: str):
     instruction = extract_title_prompt_template.format(citation_text=citation_text)
-    response_dict = call_gemini_with_text_prompt(
+    response_dict = call_llm_with_text_prompt(
         prompt=instruction,
         model_name="gemini-3-flash-preview",
         check_parsed_response_not_none=False,
