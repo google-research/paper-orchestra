@@ -33,6 +33,94 @@ _genai_client = None
 _genai_client_lock = threading.Lock()
 
 
+# ---------------------------------------------------------------------------
+# Optional spend guard.
+# Set PAPER_BUDGET_USD in .env to stop the whole process once the estimated
+# Gemini spend passes that amount. Unset or 0 = no limit (usage is still logged).
+# Prices are USD per 1M tokens for gemini-3.1-pro-preview (paid tier), read from
+# the Gemini pricing page on 2026-11-17; override with the env vars below.
+# ---------------------------------------------------------------------------
+_spend_lock = threading.Lock()
+_spend = {"usd": 0.0, "in": 0, "out": 0, "calls": 0, "searches": 0}
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, "") or default)
+    except ValueError:
+        return default
+
+
+def _budget_usd() -> float:
+    return _env_float("PAPER_BUDGET_USD", 0.0)
+
+
+def _stop_if_over_budget():
+    budget = _budget_usd()
+    if budget > 0 and _spend["usd"] >= budget:
+        print(
+            f"\n🛑 BUDGET STOP: estimated spend ${_spend['usd']:.3f} reached the "
+            f"limit ${budget:.2f} after {_spend['calls']} calls "
+            f"({_spend['in']:,} input / {_spend['out']:,} output tokens, "
+            f"{_spend['searches']} searches). Exiting.",
+            flush=True,
+        )
+        os._exit(3)
+
+
+def _record_usage(response):
+    usage = getattr(response, "usage_metadata", None)
+    n_in = (getattr(usage, "prompt_token_count", 0) or 0) + (
+        getattr(usage, "tool_use_prompt_token_count", 0) or 0
+    )
+    n_out = (getattr(usage, "candidates_token_count", 0) or 0) + (
+        getattr(usage, "thoughts_token_count", 0) or 0
+    )
+    n_search = 0
+    for cand in getattr(response, "candidates", None) or []:
+        meta = getattr(cand, "grounding_metadata", None)
+        n_search += len(getattr(meta, "web_search_queries", None) or [])
+
+    long_prompt = n_in > 200_000
+    price_in = _env_float("PAPER_PRICE_IN_PER_M", 4.0 if long_prompt else 2.0)
+    price_out = _env_float("PAPER_PRICE_OUT_PER_M", 18.0 if long_prompt else 12.0)
+    price_search = _env_float("PAPER_PRICE_PER_SEARCH", 0.0)
+    cost = n_in / 1e6 * price_in + n_out / 1e6 * price_out + n_search * price_search
+
+    with _spend_lock:
+        _spend["usd"] += cost
+        _spend["in"] += n_in
+        _spend["out"] += n_out
+        _spend["calls"] += 1
+        _spend["searches"] += n_search
+        budget = _budget_usd()
+        limit = f" / ${budget:.2f}" if budget > 0 else ""
+        print(
+            f"💰 call {_spend['calls']}: +${cost:.4f} "
+            f"({n_in:,} in, {n_out:,} out, {n_search} searches) "
+            f"| total ${_spend['usd']:.3f}{limit}",
+            flush=True,
+        )
+        _stop_if_over_budget()
+
+
+def _install_spend_guard(client):
+    original = client.models.generate_content
+
+    def guarded(*args, **kwargs):
+        with _spend_lock:
+            _stop_if_over_budget()
+        response = original(*args, **kwargs)
+        try:
+            _record_usage(response)
+        except Exception as exc:  # never let accounting break a call
+            print(f"Warning: spend accounting failed: {exc}")
+        return response
+
+    client.models.generate_content = guarded
+    return client
+
+
 def get_genai_client() -> genai.Client:
     """Returns a shared Gemini client, creating it on first use.
 
@@ -59,12 +147,20 @@ def get_genai_client() -> genai.Client:
                     )
                 elif gemini_api_key:
                     print("Using Gemini API Key configuration.")
-                    _genai_client = genai.Client(api_key=gemini_api_key)
+                    # Recent google-genai versions default to API version v1,
+                    # where preview models (the defaults here) are not served.
+                    _genai_client = genai.Client(
+                        api_key=gemini_api_key,
+                        http_options=types.HttpOptions(
+                            api_version=os.getenv("GEMINI_API_VERSION", "v1beta")
+                        ),
+                    )
                 else:
                     raise ValueError(
                         "Either VERTEX_AI_PROJECT/VERTEX_AI_LOCATION or GEMINI_API_KEY"
                         " must be set to use Gemini models."
                     )
+                _install_spend_guard(_genai_client)
     return _genai_client
 
 
@@ -171,9 +267,27 @@ def call_gemini_with_contents(
     raw_response = None
     parsed_response = None
 
-    genai_client = get_genai_client()
+    # Route to Claude Code / Codex when PAPER_LLM_BACKEND is set.
+    from utils.cli_backend import call_cli, cli_backend
+
+    use_cli = bool(cli_backend())
+    genai_client = None if use_cli else get_genai_client()
     for attempt in range(max_retries):
         try:
+            if use_cli:
+                raw_response = call_cli(contents, generation_configs)
+                if not raw_response:
+                    raise ValueError("Empty response from the CLI backend")
+                parsed_response = result_parsing_func(raw_response)
+                if check_parsed_response_not_none:
+                    assert (
+                        parsed_response is not None
+                    ), f"Parsed response is None, Here is the raw response:\n{raw_response}"
+                return {
+                    "raw_response": raw_response,
+                    "parsed_response": parsed_response,
+                }
+
             response = genai_client.models.generate_content(
                 model=model_name,
                 contents=contents,
@@ -198,6 +312,13 @@ def call_gemini_with_contents(
 
         except Exception as e:
             error_msg = str(e)
+            if type(e).__name__ == "CliFatalError":
+                print(
+                    f"\n🛑 CLI backend stopped (not retrying): {error_msg}\n"
+                    "   Finished stages are kept. Run the same command again with --resume.",
+                    flush=True,
+                )
+                os._exit(4)
             print(
                 f"Warning: Gemini API call failed on attempt {attempt + 1} of {max_retries}. Error: {error_msg}",
             )

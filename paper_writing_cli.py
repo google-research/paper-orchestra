@@ -87,7 +87,17 @@ def main():
         help="Maximum rounds of self-correction in the plotting agent.",
     )
 
+    # Continue an interrupted run in the same --output_dir.
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Reuse finished stages (outline, literature review, plots, draft) found in --output_dir "
+        "instead of redoing them. Content refinement always restarts from the draft.",
+    )
     args = parser.parse_args()
+    if args.resume and not args.output_dir:
+        print("Error: --resume needs the --output_dir of the run you want to continue.")
+        sys.exit(1)
 
     if args.research_cutoff is None:
         args.research_cutoff = datetime.now().strftime("%Y-%m")
@@ -153,6 +163,7 @@ def main():
             image_model_name=args.image_model_name,
             research_cutoff=args.research_cutoff,
             plotting_max_critic_rounds=args.plotting_max_critic_rounds,
+            resume=args.resume,
         )
     else:
         from methods.paper_writer import write_single_paper
@@ -169,6 +180,7 @@ def main():
             writer_model_name=args.writer_model_name,
             reflection_model_name=args.reflection_model_name,
             research_cutoff=args.research_cutoff,
+            resume=args.resume,
         )
 
 
