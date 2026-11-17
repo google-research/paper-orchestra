@@ -5,3 +5,5 @@
 datasets/*
 paper_output*
 *.zip
+# Your own research inputs stay local
+my_inputs/

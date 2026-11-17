@@ -18,6 +18,79 @@ Acting like an orchestrated team of specialized agents, it handles outline gener
 - **Visuals Generation**: Generates plots and supports the inclusion of conceptual diagrams.
 - **LaTeX Automation**: Produces submission-ready LaTeX manuscripts adhering to target conference templates.
 
+## About this fork: run on Claude Code or Codex, no API key needed
+
+This fork of [google-research/paper-orchestra](https://github.com/google-research/paper-orchestra) adds a
+switch that sends every LLM call to the **Claude Code** or **Codex** command-line tool you are already logged in
+to, so a run uses your Claude or ChatGPT subscription instead of a paid Gemini API key. Nothing else in the
+pipeline changes.
+
+### Quick start
+
+```bash
+git clone https://github.com/Tusherbhomik/paper-orchestra.git
+cd paper-orchestra
+conda create -n paper_orchestra python=3.11 -y
+conda activate paper_orchestra
+pip install -r requirements.txt
+cp .env.example .env          # PAPER_LLM_BACKEND=claude is already set
+```
+
+You also need:
+- **Claude Code** (`claude` on your PATH, logged in), or **Codex** (`codex` on your PATH, logged in) with
+  `PAPER_LLM_BACKEND=codex` in `.env`;
+- **LaTeX** with `pdflatex` and `bibtex` (for example TeX Live), used to compile the paper.
+
+Put your materials in a folder with two files, `idea_sparse.md` (problem, idea, method, contributions) and
+`experimental_log.md` (setup and every number you want in the paper, as tables). Figures are optional: add a
+`figures/` subfolder with the image files and an `info.json` listing them, for example
+`[{"name": "result.png", "caption": "What the figure shows."}]`. Then run:
+
+```bash
+python paper_writing_cli.py \
+  --raw_materials_dir path/to/your_materials \
+  --latex_template_dir templates/iclr2025 \
+  --output_dir ./paper_output_mypaper
+```
+
+The paper is written to `paper_output_mypaper/`. Anything under `my_inputs/` and `paper_output*/` is ignored by
+git, so your unpublished work is not committed by accident.
+
+### Settings (`.env`)
+
+| Variable | Meaning |
+|---|---|
+| `PAPER_LLM_BACKEND` | `claude`, `codex`, or empty for the Gemini API |
+| `PAPER_CLI_MODEL` | Model for the CLI. Claude: `opus` (default) or `sonnet`. Codex: empty for its default |
+| `PAPER_CLI_CONCURRENCY` | CLI sessions at once (default 3) |
+| `PAPER_CLI_TIMEOUT` | Seconds allowed per call (default 900) |
+| `PAPER_BUDGET_USD` | Gemini API mode only: stop once the estimated spend passes this amount (0 = no limit) |
+
+### Good to know
+
+- **Usage limits.** A full paper is roughly 50–80 calls with large prompts. If your subscription's usage limit
+  is reached, the run stops with the reason; a rerun starts from the beginning. `sonnet` uses less than `opus`.
+- **Time.** Each call starts a CLI session; a full paper takes roughly 30–90 minutes.
+- **Literature search** uses Claude's or Codex's web search in place of Google Search. Paper metadata still comes
+  from Semantic Scholar (no key needed).
+- **PDFs.** Where the pipeline sends Gemini a compiled PDF, the CLI receives its extracted text (as the repo's
+  OpenAI path already does). Page images are still passed as images.
+- **Model flags** such as `--writer_model_name` are ignored in CLI mode.
+- **Check the output.** Citations come from web search and Semantic Scholar, and the text is generated; verify
+  every claim, number and reference. Check your venue's policy on AI-generated text before submitting.
+- **Data leaves your machine.** Your materials are sent to Anthropic (Claude) or OpenAI (Codex).
+
+### What was changed from upstream
+
+- `utils/cli_backend.py` (new): runs each call through `claude -p` or `codex exec`, passes images as files,
+  turns on web search for the literature agent, limits concurrency, and stops on usage-limit or login errors.
+- `utils/gemini_utils.py`: `call_gemini_with_contents`, which every Gemini call goes through, hands calls to the
+  CLI backend when `PAPER_LLM_BACKEND` is set. Also: the Gemini client uses API version `v1beta` (preview models
+  are not served on `v1`), and an optional spend guard (`PAPER_BUDGET_USD`) logs and caps estimated Gemini cost.
+- `.env.example` (new), and `my_inputs/` added to `.gitignore`.
+
+The original README follows.
+
 ## Installation
 
 1.  **Environment Setup**: The project relies on a Conda environment named `paper_orchestra`. You can set up a similar environment with Python 3.11 and install the required dependencies.
