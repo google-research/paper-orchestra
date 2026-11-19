@@ -245,7 +245,7 @@ def perform_sxs_paper_quality_batch(
     output_folder: str = "./logs/sxs_paper_quality",
     model_name: str = "gemini-3.1-pro-preview",
 ):
-    print(f"Starting Enhanced SxS Paper Quality batch execution...", flush=True)
+    print("Starting Enhanced SxS Paper Quality batch execution...", flush=True)
     print(f"Project 1: {project_folder_1} ({rel_path_1})", flush=True)
     print(f"Project 2: {project_folder_2} ({rel_path_2})", flush=True)
     print(f"Comparing [{exp1_name}] vs [{exp2_name}] using {model_name}", flush=True)
@@ -388,7 +388,7 @@ def perform_sxs_paper_quality_batch(
     print("ENHANCED SxS PAPER QUALITY EVALUATION SUMMARY", flush=True)
     print("=" * 50, flush=True)
     print(f"Total Evaluated: {valid_evals}", flush=True)
-    print(f"--- 5-Point Scale ---", flush=True)
+    print("--- 5-Point Scale ---", flush=True)
     print(
         f"[{exp1_name}] Wins: {wins_5pt} ({stats['five_point']['win_rate']:.1%})",
         flush=True,
@@ -402,7 +402,7 @@ def perform_sxs_paper_quality_batch(
         f"[{exp2_name}] Leaning Wins (P1 Lean Loss): {leaning_losses_5pt}", flush=True
     )
     print(f"[{exp2_name}] Wins (P1 Loss): {losses_5pt}", flush=True)
-    print(f"--- 3-Point Scale ---", flush=True)
+    print("--- 3-Point Scale ---", flush=True)
     print(
         f"[{exp1_name}] Wins: {wins_3pt} ({stats['three_point']['win_rate']:.1%})",
         flush=True,

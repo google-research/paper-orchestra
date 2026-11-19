@@ -19,7 +19,7 @@ import os
 import json
 import matplotlib.pyplot as plt
 import json_repair
-from typing import Dict, Any, List, Tuple
+from typing import Dict, List, Tuple
 from google.genai import types
 
 from utils.gemini_utils import (
@@ -631,7 +631,7 @@ def critique_and_revise_figure(
         eval_result = json_repair.loads(cleaned_response)
         if not isinstance(eval_result, dict):
             eval_result = {}
-    except Exception as e:
+    except Exception:
         eval_result = {}
 
     critic_suggestions = eval_result.get("critic_suggestions", "No changes needed.")

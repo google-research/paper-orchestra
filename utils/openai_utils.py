@@ -17,9 +17,7 @@ import re
 import json
 import time
 import os
-import sys
 import threading
-import cv2  # type: ignore
 import base64
 
 from openai import OpenAI  # type: ignore

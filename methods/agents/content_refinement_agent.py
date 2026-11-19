@@ -235,7 +235,7 @@ Respond in JSON format with the following structure:
         v0_screenshots_dir = os.path.join(
             self.work_dir, "pdf_screenshots", "content_refinement", "v0"
         )
-        print(f" >> Generating snapshots for V0...")
+        print(" >> Generating snapshots for V0...")
         pdf_to_grid_images(initial_pdf_path, v0_screenshots_dir)
 
         current_peer_review, self.current_score = self._get_peer_review(
@@ -451,7 +451,7 @@ INSTRUCTION:
         format_v0_screenshots_dir = os.path.join(
             self.work_dir, "pdf_screenshots", "format_refinement", "v0"
         )
-        print(f" >> Generating snapshots for format v0...")
+        print(" >> Generating snapshots for format v0...")
         pdf_to_grid_images(final_valid_pdf_path, format_v0_screenshots_dir)
 
         # --- Formatting Loop ---

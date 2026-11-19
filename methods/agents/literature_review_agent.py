@@ -114,7 +114,7 @@ class HybridLiteratureAgent:
         processed_tasks = set()
 
         # --- PHASE 1: DISCOVERY & RETRIEVAL ---
-        self._safe_print(f"📚 Phase 1: Analyzing Plan & Executing Search Tasks...")
+        self._safe_print("📚 Phase 1: Analyzing Plan & Executing Search Tasks...")
 
         search_tasks = self._collect_search_tasks(outline)
         self._safe_print(
@@ -172,7 +172,7 @@ class HybridLiteratureAgent:
         if not active_tasks:
             return
 
-        self._safe_print(f"   🔎 Phase 1a: Google Candidates Discovery (MaxPool=10)...")
+        self._safe_print("   🔎 Phase 1a: Google Candidates Discovery (MaxPool=10)...")
         all_candidates_with_tasks = []
 
         with ThreadPoolExecutor(max_workers=10) as executor:  # Fast for Google Search!
@@ -197,7 +197,7 @@ class HybridLiteratureAgent:
                     )
 
         self._safe_print(
-            f"   📊 Phase 1b: Semantic Scholar Enrichment (Rate-limited, sequential)..."
+            "   📊 Phase 1b: Semantic Scholar Enrichment (Rate-limited, sequential)..."
         )
         import time
 
@@ -319,7 +319,7 @@ class HybridLiteratureAgent:
                 if candidates:
                     return candidates
                 retry_count += 1
-            except Exception as e:
+            except Exception:
                 retry_count += 1
         return []
 
@@ -379,7 +379,7 @@ class HybridLiteratureAgent:
                         self._safe_print(
                             f"      -> 📚 Added enriched paper: {full_obj.title}"
                         )
-        except Exception as e:
+        except Exception:
             pass
 
     def _is_paper_allowed(self, s2_data: Dict, cutoff_date_str: str) -> bool:

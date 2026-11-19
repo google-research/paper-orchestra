@@ -36,8 +36,6 @@ from methods.prompts.section_writing_agent import section_writing_agent_prompt
 from utils.gemini_utils import parse_gemini_latex_results
 from utils.llm_backend_utils import call_llm_with_images
 
-import json
-from typing import List, Dict
 
 
 class SectionWritingAgent:
