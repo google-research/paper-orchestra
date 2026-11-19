@@ -27,6 +27,7 @@ from methods.agents.content_refinement_agent import ContentRefinementAgent
 
 from utils.common_utils import (
     create_log_folder,
+    index_provided_figures,
 )
 
 
@@ -54,6 +55,9 @@ def write_single_paper(
     if osp.exists(old_figure_dir):
         shutil.copytree(old_figure_dir, new_figure_dir, dirs_exist_ok=True)
     figures_dir = new_figure_dir
+    # Non-plotting path: index user-provided figures so the writer learns their
+    # real filenames instead of inventing names from the plotting plan.
+    index_provided_figures(figures_dir)
 
     max_n_tries = 3
     cur_try = 0

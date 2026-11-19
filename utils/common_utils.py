@@ -13,8 +13,35 @@
 # limitations under the License.
 
 import datetime
+import json
 import os
 import os.path as osp
+
+PROVIDED_FIGURE_EXTENSIONS = (".pdf", ".png", ".jpg", ".jpeg")
+
+
+def index_provided_figures(figures_dir: str) -> str:
+    """Write ``figures_dir/info.json`` from the figure files present on disk.
+
+    Used when user-supplied figures were copied into the LaTeX workspace but no
+    inventory (``info.json``) exists yet, e.g. on the non-plotting path. The
+    generated entries carry only the ``name`` key so the section writer composes
+    captions from the materials instead of receiving a blank caption line.
+    Returns the path of the inventory file, or "" when nothing was written.
+    """
+    figures_info_path = osp.join(figures_dir, "info.json")
+    if not osp.isdir(figures_dir) or osp.exists(figures_info_path):
+        return ""
+    provided = sorted(
+        name
+        for name in os.listdir(figures_dir)
+        if name.lower().endswith(PROVIDED_FIGURE_EXTENSIONS)
+    )
+    if not provided:
+        return ""
+    with open(figures_info_path, "w", encoding="utf-8") as f:
+        json.dump([{"name": name} for name in provided], f, indent=4)
+    return figures_info_path
 
 
 def create_log_folder(
