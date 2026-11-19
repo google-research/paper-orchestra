@@ -134,7 +134,7 @@ def main():
             )
             print("If figures are missing, compilation may fail.")
             print(
-                f"If you don't have figures, you can use the plotting agent to generate them by running with --use_plotting."
+                "If you don't have figures, you can use the plotting agent to generate them by running with --use_plotting."
             )
             print("=" * 80 + "\n")
 

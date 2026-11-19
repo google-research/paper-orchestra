@@ -18,10 +18,7 @@ import json
 import shutil
 import rich
 import traceback
-import subprocess
-import os.path as osp
 
-import pymupdf4llm  # type: ignore
 import pymupdf  # type: ignore
 import numpy as np
 import cv2
@@ -167,7 +164,7 @@ def get_paper_references_from_pdf(
 
 
 def compile_latex(cwd, pdf_file, texfile_name="template", timeout=30):
-    import os, shutil, subprocess, traceback, rich
+    import os
 
     source_pdf = os.path.join(cwd, f"{texfile_name}.pdf")
     if os.path.exists(source_pdf):
@@ -226,7 +223,7 @@ def compile_latex(cwd, pdf_file, texfile_name="template", timeout=30):
             print(traceback.format_exc())
     else:
         rich.print(
-            f"\n[bold red]❌ PDF Generation Failed (No PDF file produced)[/bold red]"
+            "\n[bold red]❌ PDF Generation Failed (No PDF file produced)[/bold red]"
         )
 
         for log in execution_logs:

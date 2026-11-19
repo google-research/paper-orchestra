@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import warnings
 import os
 import requests
-import time
-from typing import List, Dict, Union, Optional
+from typing import Dict, Optional
 from thefuzz import fuzz  # type: ignore
 import datetime
 

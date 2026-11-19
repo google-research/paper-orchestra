@@ -20,7 +20,6 @@ from google import genai
 from google.genai import types  # type: ignore
 import time
 import os
-import mimetypes
 import base64
 import threading
 

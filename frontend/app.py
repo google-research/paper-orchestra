@@ -18,11 +18,6 @@ import json
 import sys
 import time
 import threading
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email import encoders
 from dotenv import load_dotenv
 import subprocess
 import shutil
@@ -39,8 +34,6 @@ load_dotenv()
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from methods.paper_writer import write_single_paper
-from utils.pdf_utils import pdf_to_grid_images
 
 st.set_page_config(
     page_title="Paper Orchestra - AI Paper Writer",
@@ -655,13 +648,13 @@ if not st.session_state.get("hide_inputs"):
                 "Upload figure",
                 type=["png", "jpg", "jpeg", "pdf"],
                 disabled=st.session_state.locked,
-                key=f"figure_uploader_main",
+                key="figure_uploader_main",
             )
         with figure_column_2:
             figure_caption = st.text_input(
                 "Figure Caption",
                 disabled=st.session_state.locked,
-                key=f"figure_caption_main",
+                key="figure_caption_main",
             )
 
             button_column, _ = st.columns([1, 2])

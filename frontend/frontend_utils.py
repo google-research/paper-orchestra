@@ -36,7 +36,7 @@ def send_notification_email(recipient_email, paper_name, attachments=None):
         msg["To"] = recipient_email
         msg["Subject"] = f"Paper Orchestra: {paper_name} is Complete!"
 
-        body = f"""
+        body = """
         <html>
         <body>
             <h2>🎻 Paper Orchestra Notification</h2>

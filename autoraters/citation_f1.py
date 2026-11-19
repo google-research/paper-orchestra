@@ -17,7 +17,6 @@ import os
 import requests
 import json
 import time
-import os.path as osp
 from typing import List, Dict, Any
 from joblib import Parallel, delayed  # type: ignore
 from tqdm import tqdm
@@ -398,7 +397,7 @@ def get_citation_f1_metrics(
             print("Error: Could not extract text from GT PDF.")
             gt_references_text = ""
 
-        print(f"Loading full paper text for LLM citation categorization...")
+        print("Loading full paper text for LLM citation categorization...")
         paper_text = load_paper(
             original_pdf, num_pages=20
         )  # Limit to 20 pages to save token limit context if needed, though pro can handle more
@@ -428,12 +427,12 @@ def get_citation_f1_metrics(
     # --- 3. Compare ---
     results = evaluator.evaluate_from_data(gt_data, gen_data)
 
-    print(f"\n--- Overall Metrics ---")
+    print("\n--- Overall Metrics ---")
     print(f"Overall Precision: {results['overall_precision']:.2f}")
     print(f"Overall Recall:    {results['overall_recall']:.2f}")
     print(f"Overall F1 Score:  {results['overall_f1']:.2f}")
 
-    print(f"\n--- Priority Recall Metrics ---")
+    print("\n--- Priority Recall Metrics ---")
     print(f"P0 Recall:         {results['p0_recall']:.2f}")
     print(f"P1 Recall:         {results['p1_recall']:.2f}")
 

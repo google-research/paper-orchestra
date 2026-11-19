@@ -19,7 +19,6 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pydantic import BaseModel, Field
 
-from pydantic import BaseModel, Field
 
 from utils.llm_backend_utils import call_llm_with_pdf
 from autoraters.prompts.lit_review_quality_prompts import (
@@ -293,7 +292,7 @@ def print_literature_review_stats(file_path):
         return
 
     print("=" * 60)
-    print(f"LITERATURE REVIEW EVALUATION STATS")
+    print("LITERATURE REVIEW EVALUATION STATS")
     print(f"Total Papers Processed: {total_papers}")
     print("=" * 60)
     print(f"{'Metric / Axis':<45} | {'Avg Score'}")
