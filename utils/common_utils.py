@@ -52,3 +52,23 @@ def load_md_file(md_file_path: str):
         prompt_content = f.read()
 
     return prompt_content
+
+
+# Map image file extensions to their MIME types.
+_IMAGE_EXTENSION_MIME_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+}
+
+
+def get_image_mime_type(image_path: str, default: str = "image/png") -> str:
+    """Returns the MIME type to declare for an image file, from its extension.
+
+    Falls back to `default`, the type the backend already assumed, for an
+    unknown extension so callers never have to handle None.
+    """
+    extension = osp.splitext(image_path)[1].lower()
+    return _IMAGE_EXTENSION_MIME_TYPES.get(extension, default)

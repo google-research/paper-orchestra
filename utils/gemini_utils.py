@@ -26,6 +26,8 @@ import threading
 
 import dotenv
 
+from utils.common_utils import get_image_mime_type
+
 dot_file = os.path.join(os.path.dirname(__file__), "../.env")
 dotenv.load_dotenv(dot_file)
 
@@ -262,7 +264,10 @@ def call_gemini_with_images(
         with open(image_path, "rb") as f:
             img_bytes = f.read()
         llm_contents.append(
-            types.Part.from_bytes(data=img_bytes, mime_type="image/png")
+            types.Part.from_bytes(
+                data=img_bytes,
+                mime_type=get_image_mime_type(image_path, default="image/png"),
+            )
         )
 
     response_dict = call_gemini_with_contents(
