@@ -433,7 +433,7 @@ def generate_figure_caption(
         "temperature": 0.5,
     }
 
-    if base64_image and len(base64_image) > 100:
+    if base64_image and len(base64_image) > 100 and not is_nvidia_model(model_name):
         contents = [
             types.Part.from_text(text=prompt),
             types.Part.from_bytes(
@@ -600,7 +600,7 @@ def critique_and_revise_figure(
         types.Part.from_text(text=critique_target),
     ]
 
-    if base64_image and len(base64_image) > 100:
+    if base64_image and len(base64_image) > 100 and not is_nvidia_model(model_name):
         contents.append(
             types.Part.from_bytes(
                 data=base64.b64decode(base64_image), mime_type="image/jpeg"

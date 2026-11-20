@@ -25,6 +25,7 @@ from google.genai import types  # type: ignore
 from methods.prompts.literature_review_agent import (
     literature_review_agent_writter_prompt,
 )
+from utils.nvidia_utils import is_nvidia_model
 from utils.gemini_utils import call_gemini_with_contents, parse_gemini_latex_results
 from utils.scholar_utils import s2_title_search
 
@@ -172,8 +173,14 @@ class HybridLiteratureAgent:
         if not active_tasks:
             return
 
-        pool_size = min(self.max_workers, 3) if self.max_workers else 3
-        self._safe_print(f"   🔎 Phase 1a: Google Candidates Discovery (MaxPool={pool_size})...")
+        pool_size = (
+            1
+            if is_nvidia_model(self.model_name)
+            else (min(self.max_workers, 3) if self.max_workers else 3)
+        )
+        self._safe_print(
+            f"   🔎 Phase 1a: Google Candidates Discovery (MaxPool={pool_size})..."
+        )
         all_candidates_with_tasks = []
 
         with ThreadPoolExecutor(max_workers=pool_size) as executor:

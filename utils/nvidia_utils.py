@@ -33,6 +33,7 @@ _nvidia_client_lock = threading.Lock()
 
 # Default NVIDIA NIM Hosted API URL
 DEFAULT_NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
+DEFAULT_NVIDIA_TIMEOUT_SEC = 90.0
 
 
 class NvidiaRateLimiter:
@@ -189,7 +190,12 @@ def get_nvidia_client(force_reload: bool = False) -> OpenAI:
                         "Please add NVIDIA_API_KEY to your .env file or environment variables."
                     )
                 base_url = os.environ.get("NVIDIA_BASE_URL", DEFAULT_NVIDIA_BASE_URL)
-                _nvidia_client = OpenAI(base_url=base_url, api_key=api_key)
+                timeout_sec = float(
+                    os.environ.get("NVIDIA_TIMEOUT_SEC", DEFAULT_NVIDIA_TIMEOUT_SEC)
+                )
+                _nvidia_client = OpenAI(
+                    base_url=base_url, api_key=api_key, timeout=timeout_sec
+                )
     return _nvidia_client
 
 
@@ -283,13 +289,39 @@ def call_nvidia_models_with_content(
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
 
-            messages.append({"role": "user", "content": content})
+            # If content is multimodal (contains image_url) but model is text-only, sanitize to text
+            processed_content = content
+            if isinstance(content, list):
+                has_image = any(
+                    isinstance(c, dict) and c.get("type") == "image_url"
+                    for c in content
+                )
+                if has_image:
+                    text_parts = [
+                        c.get("text", "")
+                        for c in content
+                        if isinstance(c, dict) and c.get("type") == "text"
+                    ]
+                    processed_content = (
+                        "\n\n".join(text_parts)
+                        if text_parts
+                        else "Describe and review the figure."
+                    )
+            elif isinstance(content, str):
+                processed_content = content
+
+            messages.append({"role": "user", "content": processed_content})
+
+            timeout_sec = float(
+                os.environ.get("NVIDIA_TIMEOUT_SEC", DEFAULT_NVIDIA_TIMEOUT_SEC)
+            )
 
             # Enforce single-flight concurrency lock and RPM cap across all threads
             with _rate_limiter:
                 response = client.chat.completions.create(
                     model=normalized_model,
                     messages=messages,
+                    timeout=timeout_sec,
                     **configs,
                 )
 
@@ -325,9 +357,15 @@ def call_nvidia_models_with_content(
 
             if "429" in err_msg or "rate limit" in err_msg.lower():
                 jitter = random.uniform(2.0, 5.0)
-                delay = (10.0 * (1.5 ** attempt)) + jitter
+                delay = (10.0 * (1.5**attempt)) + jitter
                 print(
                     f"[NVIDIA Rate Limiter] 429 rate limit detected; backing off for {delay:.2f}s (attempt {attempt + 1})..."
+                )
+            elif "timeout" in err_msg.lower():
+                jitter = random.uniform(1.0, 3.0)
+                delay = 5.0 + jitter
+                print(
+                    f"[NVIDIA Rate Limiter] Request timeout detected; backing off for {delay:.2f}s before retry..."
                 )
             else:
                 delay = base_interval_sec * (2 ** (attempt - 1)) if attempt > 0 else 2

@@ -225,7 +225,7 @@ class PlottingAgent:
         plotting_plan = outline_data.get("plotting_plan", [])
 
         results = []
-        worker_count = 2 if is_nvidia_model(self.model_name) else 5
+        worker_count = 1 if is_nvidia_model(self.model_name) else 5
         with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor:
             futures = {
                 executor.submit(

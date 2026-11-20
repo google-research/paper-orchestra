@@ -28,6 +28,7 @@ from methods.agents.section_writing_agent import SectionWritingAgent
 from methods.agents.content_refinement_agent import ContentRefinementAgent
 from methods.agents.plotting_agent import PlottingAgent
 
+from utils.nvidia_utils import is_nvidia_model
 from utils.common_utils import (
     create_log_folder,
 )
@@ -152,12 +153,24 @@ def write_single_paper(
                 return res
 
             _t1 = time.time()
-            with ThreadPoolExecutor(max_workers=2) as executor:
-                future_lit = executor.submit(run_literature_agent)
-                future_plot = executor.submit(run_plotting_agent)
+            if is_nvidia_model(writer_model_name) or is_nvidia_model(
+                plotting_model_name
+            ):
+                print(
+                    "[INFO] Running literature agent and plotting agent sequentially for NVIDIA NIM..."
+                )
+                run_literature_agent()
+                plot_results = run_plotting_agent()
+            else:
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    future_lit = executor.submit(run_literature_agent)
+                    future_plot = executor.submit(run_plotting_agent)
 
-                future_lit.result()
-                plot_results = future_plot.result()
+                    future_lit.result()
+                    plot_results = future_plot.result()
+
+            if plot_results is None:
+                plot_results = []
             time_log["Parallel_Lit_and_Plot"] = time.time() - _t1
 
             existing_info_path = osp.join(figures_dir, "info.json")
