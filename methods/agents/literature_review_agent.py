@@ -172,10 +172,11 @@ class HybridLiteratureAgent:
         if not active_tasks:
             return
 
-        self._safe_print(f"   🔎 Phase 1a: Google Candidates Discovery (MaxPool=10)...")
+        pool_size = min(self.max_workers, 3) if self.max_workers else 3
+        self._safe_print(f"   🔎 Phase 1a: Google Candidates Discovery (MaxPool={pool_size})...")
         all_candidates_with_tasks = []
 
-        with ThreadPoolExecutor(max_workers=10) as executor:  # Fast for Google Search!
+        with ThreadPoolExecutor(max_workers=pool_size) as executor:
             future_to_task = {
                 executor.submit(
                     self._process_search_task_google, task, outline, cutoff_date

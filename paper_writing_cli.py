@@ -109,7 +109,7 @@ def main():
     target_raw_materials = os.path.join(base_dir, "raw_materials")
     if os.path.abspath(target_raw_materials) != os.path.abspath(args.raw_materials_dir):
         if os.path.exists(target_raw_materials):
-            shutil.rmtree(target_raw_materials)
+            shutil.rmtree(target_raw_materials, ignore_errors=True)
         shutil.copytree(args.raw_materials_dir, target_raw_materials)
 
     if not args.use_plotting:

@@ -19,6 +19,7 @@ import json
 import time
 import os
 import threading
+import random
 import base64
 
 from openai import OpenAI  # type: ignore
@@ -35,27 +36,34 @@ DEFAULT_NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 
 
 class NvidiaRateLimiter:
-    """Thread-safe sliding window rate limiter for NVIDIA NIM API calls.
-    Enforces a strict cap of 35 requests per minute (RPM) across all concurrent threads,
-    with minimum inter-request spacing to prevent burst 429s.
+    """Thread-safe rate limiter and in-flight concurrency controller for NVIDIA NIM API calls.
+    - Limits in-flight concurrency to max_concurrency (default: 1 request in-flight at a time)
+      to avoid upstream 429 concurrency rejections on huge models like nemotron-3-ultra-550b.
+    - Limits overall request rate to max_requests per period_seconds (default: 30 RPM).
+    - Enforces a minimum cooldown interval after the previous request finishes before starting the next.
+    - Provides context manager support: `with _rate_limiter:`
     """
 
     def __init__(
         self,
-        max_requests: int = 35,
+        max_requests: int = 30,
         period_seconds: float = 60.0,
-        min_interval_seconds: float = 1.72,
+        min_cooldown_seconds: float = 2.0,
+        max_concurrency: int = 1,
     ):
         self.max_requests = max_requests
         self.period_seconds = period_seconds
-        # 60s / 35 requests = ~1.714s minimum spacing
-        self.min_interval_seconds = min_interval_seconds
+        self.min_cooldown_seconds = min_cooldown_seconds
+        self.max_concurrency = max_concurrency
+        self.semaphore = threading.Semaphore(max_concurrency)
         self.lock = threading.Lock()
         self.timestamps: deque = deque()
-        self.last_call_time: float = 0.0
+        self.last_finish_time: float = 0.0
 
     def acquire(self):
-        """Blocks until a request slot is available under the 35 RPM cap and spacing limit."""
+        """Blocks until an in-flight slot is available and rate limits are satisfied."""
+        self.semaphore.acquire()
+
         while True:
             with self.lock:
                 now = time.time()
@@ -63,39 +71,51 @@ class NvidiaRateLimiter:
                 while self.timestamps and (now - self.timestamps[0]) >= self.period_seconds:
                     self.timestamps.popleft()
 
-                # Check RPM window (max 35 requests in the last 60 seconds)
+                # Check RPM window (max 30 requests in the last 60 seconds)
                 rpm_sleep = 0.0
                 if len(self.timestamps) >= self.max_requests:
                     oldest = self.timestamps[0]
                     rpm_sleep = max(0.0, (oldest + self.period_seconds) - now + 0.1)
 
-                # Check minimum inter-call spacing (prevent microbursts)
-                spacing_sleep = 0.0
-                if self.min_interval_seconds > 0.0:
-                    spacing_sleep = max(
-                        0.0, (self.last_call_time + self.min_interval_seconds) - now
+                # Check minimum cooldown since previous request finished
+                cooldown_sleep = 0.0
+                if self.min_cooldown_seconds > 0.0:
+                    cooldown_sleep = max(
+                        0.0, (self.last_finish_time + self.min_cooldown_seconds) - now
                     )
 
-                wait_time = max(rpm_sleep, spacing_sleep)
+                wait_time = max(rpm_sleep, cooldown_sleep)
 
-                if wait_time <= 0.001:
-                    current_time = time.time()
-                    self.timestamps.append(current_time)
-                    self.last_call_time = current_time
+                if wait_time <= 0.005:
+                    self.timestamps.append(time.time())
                     return
 
             if wait_time > 0.5:
                 print(
-                    f"[NVIDIA Rate Limiter] Rate limit (35 RPM) cap: sleeping {wait_time:.2f}s "
-                    f"({len(self.timestamps)} requests in last {self.period_seconds}s)..."
+                    f"[NVIDIA Rate Limiter] Guard: holding slot for {wait_time:.2f}s "
+                    f"({len(self.timestamps)} requests in last {self.period_seconds}s, cooldown {cooldown_sleep:.2f}s)..."
                 )
             time.sleep(min(wait_time, 1.0))
 
+    def release(self):
+        """Releases the in-flight slot and updates the last finish timestamp."""
+        with self.lock:
+            self.last_finish_time = time.time()
+        self.semaphore.release()
+
+    def __enter__(self):
+        self.acquire()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.release()
+
 
 _rate_limiter = NvidiaRateLimiter(
-    max_requests=int(os.environ.get("NVIDIA_RPM_CAP", 35)),
+    max_requests=int(os.environ.get("NVIDIA_RPM_CAP", 30)),
     period_seconds=60.0,
-    min_interval_seconds=float(os.environ.get("NVIDIA_MIN_INTERVAL_SEC", 1.72)),
+    min_cooldown_seconds=float(os.environ.get("NVIDIA_MIN_INTERVAL_SEC", 2.0)),
+    max_concurrency=int(os.environ.get("NVIDIA_MAX_CONCURRENCY", 1)),
 )
 
 # Recognized NVIDIA NIM model prefixes and identifiers
@@ -151,12 +171,15 @@ def normalize_nvidia_model_name(model_name: str) -> str:
     return name
 
 
-def get_nvidia_client() -> OpenAI:
+def get_nvidia_client(force_reload: bool = False) -> OpenAI:
     """Returns a shared OpenAI client configured for NVIDIA NIM."""
     global _nvidia_client
-    if _nvidia_client is None:
+    if _nvidia_client is None or force_reload:
         with _nvidia_client_lock:
-            if _nvidia_client is None:
+            if _nvidia_client is None or force_reload:
+                # Reload .env to ensure fresh API key
+                dot_file = os.path.join(os.path.dirname(__file__), "../.env")
+                load_dotenv(dot_file, override=True)
                 api_key = os.environ.get("NVIDIA_API_KEY") or os.environ.get(
                     "NVIDIA_NIM_API_KEY"
                 )
@@ -262,15 +285,22 @@ def call_nvidia_models_with_content(
 
             messages.append({"role": "user", "content": content})
 
-            # Enforce 35 requests-per-minute cap across all threads
-            _rate_limiter.acquire()
+            # Enforce single-flight concurrency lock and RPM cap across all threads
+            with _rate_limiter:
+                response = client.chat.completions.create(
+                    model=normalized_model,
+                    messages=messages,
+                    **configs,
+                )
 
-            response = client.chat.completions.create(
-                model=normalized_model,
-                messages=messages,
-                **configs,
-            )
             raw_response = response.choices[0].message.content
+            if not raw_response:
+                msg = response.choices[0].message
+                if hasattr(msg, "reasoning_content") and msg.reasoning_content:
+                    raw_response = msg.reasoning_content
+            if raw_response is None:
+                raw_response = ""
+
             parsed_response = result_parsing_func(raw_response)
 
             if check_parsed_response_not_none:
@@ -293,14 +323,16 @@ def call_nvidia_models_with_content(
                 print(f"Error: All {max_retries} retry attempts failed.")
                 raise e
 
-            delay = base_interval_sec * (2 ** (attempt - 1)) if attempt > 0 else 2
             if "429" in err_msg or "rate limit" in err_msg.lower():
-                delay = max(delay, 10.0)
+                jitter = random.uniform(2.0, 5.0)
+                delay = (10.0 * (1.5 ** attempt)) + jitter
                 print(
-                    f"[NVIDIA Rate Limiter] 429 rate limit detected; backing off for {delay} seconds..."
+                    f"[NVIDIA Rate Limiter] 429 rate limit detected; backing off for {delay:.2f}s (attempt {attempt + 1})..."
                 )
             else:
-                print(f"Retrying in {delay} seconds...")
+                delay = base_interval_sec * (2 ** (attempt - 1)) if attempt > 0 else 2
+                delay += random.uniform(1.0, 3.0)
+                print(f"Retrying in {delay:.2f} seconds...")
             time.sleep(delay)
 
     return {

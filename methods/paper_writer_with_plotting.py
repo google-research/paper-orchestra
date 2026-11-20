@@ -160,7 +160,15 @@ def write_single_paper(
                 plot_results = future_plot.result()
             time_log["Parallel_Lit_and_Plot"] = time.time() - _t1
 
+            existing_info_path = osp.join(figures_dir, "info.json")
             figures_info = []
+            if osp.exists(existing_info_path):
+                try:
+                    with open(existing_info_path, "r", encoding="utf-8") as f:
+                        figures_info = json.load(f)
+                except Exception:
+                    figures_info = []
+
             for plot_obj in plot_results:
                 if "image_path" in plot_obj:
                     src_plot = osp.join(base_dir, plot_obj["image_path"])
@@ -169,11 +177,13 @@ def write_single_paper(
                         os.makedirs(osp.dirname(dst_plot), exist_ok=True)
                         shutil.copy(src_plot, dst_plot)
                         clean_name = osp.basename(dst_plot)
-                        figures_info.append(
-                            {"name": clean_name, "caption": plot_obj.get("caption", "")}
-                        )
+                        # Avoid duplicates
+                        if not any(f.get("name") == clean_name for f in figures_info):
+                            figures_info.append(
+                                {"name": clean_name, "caption": plot_obj.get("caption", "")}
+                            )
 
-            with open(osp.join(figures_dir, "info.json"), "w") as f:
+            with open(osp.join(figures_dir, "info.json"), "w", encoding="utf-8") as f:
                 json.dump(figures_info, f, indent=4)
 
             # Copy literature agent outputs

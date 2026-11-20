@@ -17,6 +17,7 @@ import json
 import base64
 import concurrent.futures
 
+from utils.nvidia_utils import is_nvidia_model
 from utils.common_utils import load_md_file
 from utils.paper_banana_utils import (
     retrieve_few_shot_examples,
@@ -224,7 +225,8 @@ class PlottingAgent:
         plotting_plan = outline_data.get("plotting_plan", [])
 
         results = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        worker_count = 2 if is_nvidia_model(self.model_name) else 5
+        with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor:
             futures = {
                 executor.submit(
                     process_single_figure,
