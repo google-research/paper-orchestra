@@ -28,6 +28,7 @@ from methods.agents.section_writing_agent import SectionWritingAgent
 from methods.agents.content_refinement_agent import ContentRefinementAgent
 from methods.agents.plotting_agent import PlottingAgent
 
+from utils.nvidia_utils import is_nvidia_model
 from utils.common_utils import (
     create_log_folder,
 )
@@ -38,10 +39,10 @@ def write_single_paper(
     latex_template_dir,
     idea_filename="idea_dense.md",
     experimental_log_filename="experimental_log.md",
-    writer_model_name: str = "gemini-3.1-pro-preview",
-    reflection_model_name: str = "gemini-3.1-pro-preview",
-    plotting_model_name: str = "gemini-3.1-pro-preview",
-    image_model_name: str = "gemini-3-pro-image-preview",
+    writer_model_name: str = "nvidia/nemotron-3-ultra-550b-a55b",
+    reflection_model_name: str = "nvidia/nemotron-3-ultra-550b-a55b",
+    plotting_model_name: str = "nvidia/nemotron-3-ultra-550b-a55b",
+    image_model_name: str = "nvidia/nemotron-3-ultra-550b-a55b",
     research_cutoff: str = "2024-11",
     plotting_max_critic_rounds: int = 3,
 ):
@@ -52,9 +53,12 @@ def write_single_paper(
     time_log["Start_Time_Absolute"] = time.time()
 
     if osp.exists(latex_writeup_dir):
-        shutil.rmtree(latex_writeup_dir)
+        shutil.rmtree(latex_writeup_dir, ignore_errors=True)
     if osp.exists(pdf_file):
-        os.remove(pdf_file)
+        try:
+            os.remove(pdf_file)
+        except Exception:
+            pass
 
     materials_dir = osp.join(base_dir, "raw_materials")
 
@@ -101,13 +105,18 @@ def write_single_paper(
                 model_name=writer_model_name, cutoff_date=research_cutoff
             )
             outline_file_path = osp.join(base_dir, "outline.json")
-            outline_agent.run(
-                idea_file=idea_file_path,
-                experimental_log_file=experimental_log_file_path,
-                latex_template_file=latex_template_path,
-                conference_guidelines_file=guidelines_path,
-                output_filepath=outline_file_path,
-            )
+            if osp.exists(outline_file_path) and osp.getsize(outline_file_path) > 1000:
+                print(
+                    f"[INFO] Found existing outline.json at '{outline_file_path}' ({osp.getsize(outline_file_path)} bytes). Reusing outline..."
+                )
+            else:
+                outline_agent.run(
+                    idea_file=idea_file_path,
+                    experimental_log_file=experimental_log_file_path,
+                    latex_template_file=latex_template_path,
+                    conference_guidelines_file=guidelines_path,
+                    output_filepath=outline_file_path,
+                )
             time_log["OutlineAgent"] = time.time() - _t0
 
             ###############################################################################################
@@ -149,15 +158,35 @@ def write_single_paper(
                 return res
 
             _t1 = time.time()
-            with ThreadPoolExecutor(max_workers=2) as executor:
-                future_lit = executor.submit(run_literature_agent)
-                future_plot = executor.submit(run_plotting_agent)
+            if is_nvidia_model(writer_model_name) or is_nvidia_model(
+                plotting_model_name
+            ):
+                print(
+                    "[INFO] Running literature agent and plotting agent sequentially for NVIDIA NIM..."
+                )
+                run_literature_agent()
+                plot_results = run_plotting_agent()
+            else:
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    future_lit = executor.submit(run_literature_agent)
+                    future_plot = executor.submit(run_plotting_agent)
 
-                future_lit.result()
-                plot_results = future_plot.result()
+                    future_lit.result()
+                    plot_results = future_plot.result()
+
+            if plot_results is None:
+                plot_results = []
             time_log["Parallel_Lit_and_Plot"] = time.time() - _t1
 
+            existing_info_path = osp.join(figures_dir, "info.json")
             figures_info = []
+            if osp.exists(existing_info_path):
+                try:
+                    with open(existing_info_path, "r", encoding="utf-8") as f:
+                        figures_info = json.load(f)
+                except Exception:
+                    figures_info = []
+
             for plot_obj in plot_results:
                 if "image_path" in plot_obj:
                     src_plot = osp.join(base_dir, plot_obj["image_path"])
@@ -166,11 +195,13 @@ def write_single_paper(
                         os.makedirs(osp.dirname(dst_plot), exist_ok=True)
                         shutil.copy(src_plot, dst_plot)
                         clean_name = osp.basename(dst_plot)
-                        figures_info.append(
-                            {"name": clean_name, "caption": plot_obj.get("caption", "")}
-                        )
+                        # Avoid duplicates
+                        if not any(f.get("name") == clean_name for f in figures_info):
+                            figures_info.append(
+                                {"name": clean_name, "caption": plot_obj.get("caption", "")}
+                            )
 
-            with open(osp.join(figures_dir, "info.json"), "w") as f:
+            with open(osp.join(figures_dir, "info.json"), "w", encoding="utf-8") as f:
                 json.dump(figures_info, f, indent=4)
 
             # Copy literature agent outputs
@@ -213,7 +244,7 @@ def write_single_paper(
                 base_dir, "content_refinement_workdir"
             )
             if os.path.exists(content_refinement_workdir):
-                shutil.rmtree(content_refinement_workdir)
+                shutil.rmtree(content_refinement_workdir, ignore_errors=True)
             os.makedirs(content_refinement_workdir, exist_ok=True)
 
             shutil.copytree(
@@ -437,9 +468,9 @@ def run_batch_writeup(
     date_str: str = "",
     idea_filename: str = "idea_sparse.md",
     experimental_log_filename: str = "experimental_log.md",
-    writer_model_name: str = "gemini-3.1-pro-preview",
-    plotting_model_name: str = "gemini-3.1-pro-preview",
-    image_model_name: str = "gemini-3-pro-image-preview",
+    writer_model_name: str = "nvidia/nemotron-3-ultra-550b-a55b",
+    plotting_model_name: str = "nvidia/nemotron-3-ultra-550b-a55b",
+    image_model_name: str = "nvidia/nemotron-3-ultra-550b-a55b",
     plotting_max_critic_rounds: int = 3,
     research_cutoff: str = "2024-11",
     n_papers=-1,

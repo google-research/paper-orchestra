@@ -17,6 +17,7 @@ import json
 import base64
 import concurrent.futures
 
+from utils.nvidia_utils import is_nvidia_model
 from utils.common_utils import load_md_file
 from utils.paper_banana_utils import (
     retrieve_few_shot_examples,
@@ -31,8 +32,8 @@ from utils.paper_banana_utils import (
 def process_single_figure(
     fig_plan,
     raw_materials_dir,
-    model_name="gemini-3.1-pro-preview",
-    image_model_name="gemini-3-pro-image-preview",
+    model_name="nvidia/nemotron-3-ultra-550b-a55b",
+    image_model_name="nvidia/nemotron-3-ultra-550b-a55b",
     max_critic_rounds=3,
 ):
     print(f"Processing figure: {fig_plan.get('figure_id', 'Unknown')}")
@@ -204,8 +205,8 @@ def process_single_figure(
 class PlottingAgent:
     def __init__(
         self,
-        model_name: str = "gemini-3.1-pro-preview",
-        image_model_name: str = "gemini-3-pro-image-preview",
+        model_name: str = "nvidia/nemotron-3-ultra-550b-a55b",
+        image_model_name: str = "nvidia/nemotron-3-ultra-550b-a55b",
         max_critic_rounds: int = 3,
     ):
         self.model_name = model_name
@@ -224,7 +225,8 @@ class PlottingAgent:
         plotting_plan = outline_data.get("plotting_plan", [])
 
         results = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        worker_count = 1 if is_nvidia_model(self.model_name) else 5
+        with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor:
             futures = {
                 executor.submit(
                     process_single_figure,

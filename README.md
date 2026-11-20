@@ -27,18 +27,22 @@ Acting like an orchestrated team of specialized agents, it handles outline gener
     pip install -r requirements.txt
     ```
 
-2.  **Environment Variables**: Create a `.env` file in the root of the project and add your API keys:
+2.  **Environment Variables**: Create a `.env` file in the root of the project (see `.env.example`) and add your API keys:
     ```env
-    # Add keys if you have them, otherwise leave them empty
-    # You need to specify related keys if you want to use the model
-    # For example, if you want to use Gemini models, you need to specify either VERTEX_AI_PROJECT and VERTEX_AI_LOCATION, or GEMINI_API_KEY
-    # If you want to use OpenAI models, you need to specify OPENAI_API_KEY
-    
-    SEMANTIC_SCHOLAR_API_KEY=your_semantic_scholar_api_key
+    # NVIDIA NIM models (e.g. meta/llama-3.3-70b-instruct, nvidia/llama-3.1-nemotron-70b-instruct, deepseek-ai/deepseek-r1)
+    NVIDIA_API_KEY=your_nvidia_api_key
+    # NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1  # Optional: for self-hosted / local NIM microservices
+
+    # OpenAI models (e.g. gpt-4o, o1, o3-mini)
     OPENAI_API_KEY=your_openai_api_key
+
+    # Gemini models (e.g. gemini-3.1-pro-preview, gemini-3-flash-preview)
+    GEMINI_API_KEY=your_gemini_api_key
+    # Or Vertex AI:
     VERTEX_AI_PROJECT=your_vertex_ai_project
     VERTEX_AI_LOCATION=your_vertex_ai_location
-    GEMINI_API_KEY=your_gemini_api_key
+
+    SEMANTIC_SCHOLAR_API_KEY=your_semantic_scholar_api_key
 
     # if you want to run demo and send emails to yourself at the end, set these 2 fields as well
     SMTP_EMAIL=your_email

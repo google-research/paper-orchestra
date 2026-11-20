@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import json
-from typing import Optional, Callable, Dict, Any
+from typing import Optional, Callable, Dict, Any, List
 
 from google.genai import types
 
@@ -29,6 +29,13 @@ from utils.openai_utils import (
     parse_openai_json_results,
     get_openai_image_part_from_path,
 )
+from utils.nvidia_utils import (
+    is_nvidia_model,
+    normalize_nvidia_model_name,
+    call_nvidia_models_with_content,
+    call_nvidia_models_with_text_prompt,
+    parse_nvidia_json_results,
+)
 from utils.pdf_utils import load_paper
 
 
@@ -36,15 +43,20 @@ def identity_parse(response: str):
     return response
 
 
+def is_openai_model(model_name: str) -> bool:
+    if not model_name:
+        return False
+    name = model_name.lower()
+    return "gpt" in name or "o1" in name or "o3" in name
+
+
 def get_llm_parser(model_name: str, return_json: bool = True) -> Callable:
     if not return_json:
         return identity_parse
 
-    if (
-        "gpt" in model_name.lower()
-        or "o1" in model_name.lower()
-        or "o3" in model_name.lower()
-    ):
+    if is_nvidia_model(model_name):
+        return parse_nvidia_json_results
+    elif is_openai_model(model_name):
         return parse_openai_json_results
     else:
         return parse_gemini_json_results
@@ -59,7 +71,7 @@ def call_llm_with_text_prompt(
     result_parsing_func: Optional[Callable] = None,
 ) -> Dict[str, Any]:
     """
-    Unified function to call either Gemini or OpenAI models based on the model_name.
+    Unified function to call NVIDIA NIM, OpenAI, or Gemini models based on the model_name.
     """
     parser = (
         result_parsing_func
@@ -70,11 +82,21 @@ def call_llm_with_text_prompt(
     if generation_configs is None:
         generation_configs = {}
 
-    if (
-        "gpt" in model_name.lower()
-        or "o1" in model_name.lower()
-        or "o3" in model_name.lower()
-    ):
+    if is_nvidia_model(model_name):
+        system_prompt = None
+        configs_for_nvidia = dict(generation_configs) if generation_configs else {}
+        if "system_instruction" in configs_for_nvidia:
+            system_prompt = configs_for_nvidia.pop("system_instruction")
+
+        return call_nvidia_models_with_text_prompt(
+            prompt=prompt,
+            model_name=model_name,
+            generation_configs=configs_for_nvidia,
+            result_parsing_func=parser,
+            check_parsed_response_not_none=check_parsed_response_not_none,
+            system_prompt=system_prompt,
+        )
+    elif is_openai_model(model_name):
         system_prompt = None
         configs_for_openai = dict(generation_configs) if generation_configs else {}
         if "system_instruction" in configs_for_openai:
@@ -112,7 +134,7 @@ def call_llm_with_images(
     result_parsing_func: Optional[Callable] = None,
 ) -> Dict[str, Any]:
     """
-    Unified function to call either Gemini or OpenAI models with images based on the model_name.
+    Unified function to call NVIDIA NIM, OpenAI, or Gemini models with images based on the model_name.
     """
     parser = (
         result_parsing_func
@@ -123,13 +145,26 @@ def call_llm_with_images(
     if generation_configs is None:
         generation_configs = {}
 
-    if (
-        "gpt" in model_name.lower()
-        or "o1" in model_name.lower()
-        or "o3" in model_name.lower()
-    ):
+    if is_nvidia_model(model_name):
         system_prompt = None
-        # Copy to avoid side-effects on caller's dictionary
+        configs_for_nvidia = dict(generation_configs) if generation_configs else {}
+        if "system_instruction" in configs_for_nvidia:
+            system_prompt = configs_for_nvidia.pop("system_instruction")
+
+        content: List[Dict[str, Any]] = [{"type": "text", "text": prompt}]
+        for image_path in images:
+            content.extend(get_openai_image_part_from_path(image_path))
+
+        return call_nvidia_models_with_content(
+            content=content,
+            model_name=model_name,
+            generation_configs=configs_for_nvidia,
+            result_parsing_func=parser,
+            check_parsed_response_not_none=check_parsed_response_not_none,
+            system_prompt=system_prompt,
+        )
+    elif is_openai_model(model_name):
+        system_prompt = None
         configs_for_openai = dict(generation_configs) if generation_configs else {}
         if "system_instruction" in configs_for_openai:
             system_prompt = configs_for_openai.pop("system_instruction")
@@ -173,7 +208,7 @@ def call_llm_with_pdf(
 ) -> Dict[str, Any]:
     """
     Unified function to evaluate a PDF.
-    Passes raw PDF bytes to Gemini, and extracted text to OpenAI.
+    Passes extracted text to NVIDIA NIM and OpenAI, and raw PDF bytes to Gemini.
     """
     parser = (
         result_parsing_func
@@ -181,11 +216,19 @@ def call_llm_with_pdf(
         else get_llm_parser(model_name, return_json)
     )
 
-    if (
-        "gpt" in model_name.lower()
-        or "o1" in model_name.lower()
-        or "o3" in model_name.lower()
-    ):
+    if is_nvidia_model(model_name):
+        paper_text = load_paper(pdf_path, min_size=100)
+        full_prompt = f"Paper Content:\n{paper_text}\n\nTask:\n{prompt}"
+        generation_configs = {"temperature": temperature}
+        return call_nvidia_models_with_text_prompt(
+            prompt=full_prompt,
+            model_name=model_name,
+            generation_configs=generation_configs,
+            result_parsing_func=parser,
+            check_parsed_response_not_none=check_parsed_response_not_none,
+            system_prompt=system_instruction,
+        )
+    elif is_openai_model(model_name):
         paper_text = load_paper(pdf_path, min_size=100)
         full_prompt = f"Paper Content:\n{paper_text}\n\nTask:\n{prompt}"
 

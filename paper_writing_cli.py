@@ -51,12 +51,12 @@ def main():
     )
     parser.add_argument(
         "--writer_model_name",
-        default="gemini-3.1-pro-preview",
+        default="nvidia/nemotron-3-ultra-550b-a55b",
         help="LLM for writer and literature agents.",
     )
     parser.add_argument(
         "--reflection_model_name",
-        default="gemini-3.1-pro-preview",
+        default="nvidia/nemotron-3-ultra-550b-a55b",
         help="LLM for reflection agents.",
     )
     parser.add_argument(
@@ -72,12 +72,12 @@ def main():
     )
     parser.add_argument(
         "--plotting_model_name",
-        default="gemini-3.1-pro-preview",
+        default="nvidia/nemotron-3-ultra-550b-a55b",
         help="LLM for the plotting agent.",
     )
     parser.add_argument(
         "--image_model_name",
-        default="gemini-3-pro-image-preview",
+        default="nvidia/nemotron-3-ultra-550b-a55b",
         help="Vision model if required by plotting agent.",
     )
     parser.add_argument(
@@ -109,7 +109,7 @@ def main():
     target_raw_materials = os.path.join(base_dir, "raw_materials")
     if os.path.abspath(target_raw_materials) != os.path.abspath(args.raw_materials_dir):
         if os.path.exists(target_raw_materials):
-            shutil.rmtree(target_raw_materials)
+            shutil.rmtree(target_raw_materials, ignore_errors=True)
         shutil.copytree(args.raw_materials_dir, target_raw_materials)
 
     if not args.use_plotting:

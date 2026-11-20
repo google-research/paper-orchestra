@@ -25,6 +25,7 @@ from google.genai import types  # type: ignore
 from methods.prompts.literature_review_agent import (
     literature_review_agent_writter_prompt,
 )
+from utils.nvidia_utils import is_nvidia_model
 from utils.gemini_utils import call_gemini_with_contents, parse_gemini_latex_results
 from utils.scholar_utils import s2_title_search
 
@@ -69,7 +70,7 @@ class HybridLiteratureAgent:
         latex_template_path: str,
         conference_guidelines_path: str,
         output_dir: str,
-        model_name: str = "gemini-3.1-pro-preview",
+        model_name: str = "nvidia/nemotron-3-ultra-550b-a55b",
         max_workers: int = 5,
     ):
         self.output_dir = output_dir
@@ -172,10 +173,17 @@ class HybridLiteratureAgent:
         if not active_tasks:
             return
 
-        self._safe_print(f"   🔎 Phase 1a: Google Candidates Discovery (MaxPool=10)...")
+        pool_size = (
+            1
+            if is_nvidia_model(self.model_name)
+            else (min(self.max_workers, 3) if self.max_workers else 3)
+        )
+        self._safe_print(
+            f"   🔎 Phase 1a: Google Candidates Discovery (MaxPool={pool_size})..."
+        )
         all_candidates_with_tasks = []
 
-        with ThreadPoolExecutor(max_workers=10) as executor:  # Fast for Google Search!
+        with ThreadPoolExecutor(max_workers=pool_size) as executor:
             future_to_task = {
                 executor.submit(
                     self._process_search_task_google, task, outline, cutoff_date
@@ -461,14 +469,24 @@ class HybridLiteratureAgent:
             {DiscoveryResult.model_json_schema()}
             """
 
-        response_dict = call_gemini_with_contents(
-            model_name="gemini-3-flash-preview",
-            contents=[prompt],
-            generation_configs={
-                "tools": [self.google_search_tool],
-                "temperature": 0.1 if task.get("search_type") == "targeted" else 0.4,
-            },
-        )
+        has_gemini = bool(os.getenv("GEMINI_API_KEY") or (os.getenv("VERTEX_AI_PROJECT") and os.getenv("VERTEX_AI_LOCATION")))
+        if has_gemini and "gemini" in self.model_name.lower():
+            response_dict = call_gemini_with_contents(
+                model_name="gemini-3-flash-preview",
+                contents=[prompt],
+                generation_configs={
+                    "tools": [self.google_search_tool],
+                    "temperature": 0.1 if task.get("search_type") == "targeted" else 0.4,
+                },
+            )
+        else:
+            from utils.llm_backend_utils import call_llm_with_text_prompt
+            response_dict = call_llm_with_text_prompt(
+                prompt=prompt,
+                model_name=self.model_name,
+                generation_configs={"temperature": 0.2},
+                return_json=True,
+            )
 
         if response_dict["parsed_response"]:
             return response_dict["parsed_response"].get("candidates", [])

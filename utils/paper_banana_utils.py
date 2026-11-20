@@ -27,6 +27,7 @@ from utils.gemini_utils import (
     call_gemini_with_contents,
     generate_image_with_gemini,
 )
+from utils.nvidia_utils import is_nvidia_model
 
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 PB_DIR = os.path.join(cur_dir, "../../PaperBanana")
@@ -432,7 +433,7 @@ def generate_figure_caption(
         "temperature": 0.5,
     }
 
-    if base64_image and len(base64_image) > 100:
+    if base64_image and len(base64_image) > 100 and not is_nvidia_model(model_name):
         contents = [
             types.Part.from_text(text=prompt),
             types.Part.from_bytes(
@@ -599,7 +600,7 @@ def critique_and_revise_figure(
         types.Part.from_text(text=critique_target),
     ]
 
-    if base64_image and len(base64_image) > 100:
+    if base64_image and len(base64_image) > 100 and not is_nvidia_model(model_name):
         contents.append(
             types.Part.from_bytes(
                 data=base64.b64decode(base64_image), mime_type="image/jpeg"
@@ -669,13 +670,40 @@ def generate_figure_visuals(
         return base64_img
     else:
         # Prompt for diagram image generation
-        prompt_text = f"Render an image based on the following detailed description: {figure_description}\n Note that do not include figure titles in the image. Diagram: "
+        base64_img = None
+        if not is_nvidia_model(image_model_name) and not is_nvidia_model(model_name):
+            try:
+                prompt_text = f"Render an image based on the following detailed description: {figure_description}\n Note that do not include figure titles in the image. Diagram: "
+                base64_img = generate_image_with_gemini(
+                    model_name=image_model_name,
+                    prompt=prompt_text,
+                    aspect_ratio=aspect_ratio,
+                    generation_configs={
+                        "system_instruction": DIAGRAM_VISUALIZER_AGENT_SYSTEM_PROMPT
+                    },
+                )
+            except Exception as e:
+                print(f"[Diagram Generator] Image generation failed: {e}. Falling back to matplotlib diagram.")
 
-        return generate_image_with_gemini(
-            model_name=image_model_name,
-            prompt=prompt_text,
-            aspect_ratio=aspect_ratio,
-            generation_configs={
-                "system_instruction": DIAGRAM_VISUALIZER_AGENT_SYSTEM_PROMPT
-            },
-        )
+        if not base64_img:
+            # Fallback for NVIDIA NIM / local execution: generate clean matplotlib block diagram
+            prompt_text = (
+                f"Use python matplotlib to generate a clear, publication-quality system architecture or methodology diagram "
+                f"based on the following detailed description: {figure_description}\n"
+                f"Use matplotlib.patches (e.g. FancyBboxPatch, Rectangle, Circle, Arrow) to create well-organized boxes, "
+                f"connecting arrows, clear readable labels, and professional colors (e.g. blues, teals, oranges).\n"
+                f"Only provide the executable Python code inside ```python ... ``` without any markdown or explanations."
+            )
+            contents = [
+                types.Part.from_text(text=PLOT_VISUALIZER_AGENT_SYSTEM_PROMPT),
+                types.Part.from_text(text=prompt_text),
+            ]
+            response_dict = call_gemini_with_contents(
+                contents=contents,
+                model_name=model_name,
+                result_parsing_func=identity_parse,
+            )
+            code_text = response_dict["parsed_response"]
+            base64_img = execute_plot_code_worker(code_text)
+
+        return base64_img

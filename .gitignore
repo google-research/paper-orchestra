@@ -4,4 +4,8 @@
 *.log
 datasets/*
 paper_output*
+mock_paper_output*
 *.zip
+.venv/
+__pycache__/
+.pytest_cache/
