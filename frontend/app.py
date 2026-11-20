@@ -54,20 +54,237 @@ def apply_custom_css():
     st.markdown(
         """
     <style>
-        .stApp { background: #f8fafc; color: #0f172a; }
-        [data-testid="stSidebar"] { background-color: #f1f5f9; border-right: 1px solid #e2e8f0; }
-        .card { background: white; border-radius: 12px; padding: 2rem; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); margin-bottom: 1.5rem; }
-        .timeline-container { padding: 1rem; }
-        .timeline-item { border-left: 2px solid #e2e8f0; padding-left: 1.5rem; position: relative; margin-bottom: 1.5rem; }
-        .timeline-item.active { border-left-color: #2563eb; }
+        /* Base Application Dark Theme */
+        .stApp {
+            background-color: #0b0f19 !important;
+            color: #f1f5f9 !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        header[data-testid="stHeader"] {
+            background-color: rgba(11, 15, 25, 0.9) !important;
+        }
+
+        /* Sidebar Styling */
+        [data-testid="stSidebar"] {
+            background-color: #111827 !important;
+            border-right: 1px solid #1f2937 !important;
+        }
+        [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
+            color: #f8fafc !important;
+        }
+        [data-testid="stSidebar"] p, [data-testid="stSidebar"] span, [data-testid="stSidebar"] label {
+            color: #cbd5e1 !important;
+        }
+
+        /* Typography & Headings */
+        h1, h2, h3, h4, h5, h6 {
+            color: #f8fafc !important;
+            font-weight: 600 !important;
+        }
+        p, span, label, div {
+            color: #e2e8f0;
+        }
+        .stMarkdown p {
+            color: #cbd5e1 !important;
+        }
+
+        /* Containers & Cards */
+        .card {
+            background: #151e2e !important;
+            border-radius: 12px !important;
+            padding: 1.5rem !important;
+            border: 1px solid #1f2d42 !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
+            margin-bottom: 1.5rem !important;
+        }
+
+        /* Input Fields & Text Areas */
+        .stTextInput > div > div > input, 
+        .stTextArea > div > div > textarea {
+            background-color: #161f30 !important;
+            color: #f8fafc !important;
+            border: 1px solid #2d3f59 !important;
+            border-radius: 8px !important;
+            font-size: 0.95rem !important;
+        }
+        .stTextInput > div > div > input:focus, 
+        .stTextArea > div > div > textarea:focus {
+            border-color: #6366f1 !important;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3) !important;
+        }
+
+        /* Selectboxes & Dropdowns */
+        div[data-baseweb="select"] > div {
+            background-color: #161f30 !important;
+            border: 1px solid #2d3f59 !important;
+            color: #f8fafc !important;
+            border-radius: 8px !important;
+        }
+        div[data-baseweb="select"] * {
+            color: #f8fafc !important;
+        }
+        div[data-baseweb="popover"], div[data-baseweb="menu"], ul[data-baseweb="menu"] {
+            background-color: #161f30 !important;
+            border: 1px solid #2d3f59 !important;
+        }
+        li[data-baseweb="menu-item"] {
+            background-color: #161f30 !important;
+            color: #f8fafc !important;
+        }
+        li[data-baseweb="menu-item"]:hover {
+            background-color: #24344d !important;
+        }
+
+        /* Radio buttons */
+        div[role="radiogroup"] label span {
+            color: #e2e8f0 !important;
+        }
+
+        /* File Uploader */
+        [data-testid="stFileUploader"] section {
+            background-color: #131b2a !important;
+            border: 1px dashed #3b82f6 !important;
+            border-radius: 8px !important;
+        }
+        [data-testid="stFileUploader"] section * {
+            color: #94a3b8 !important;
+        }
+
+        /* Buttons */
+        .stButton > button {
+            background-color: #1e293b !important;
+            color: #f8fafc !important;
+            border: 1px solid #334155 !important;
+            padding: 0.6rem 1.25rem !important;
+            border-radius: 8px !important;
+            font-weight: 500 !important;
+            width: 100% !important;
+            transition: all 0.2s ease !important;
+        }
+        .stButton > button:hover {
+            background-color: #334155 !important;
+            border-color: #475569 !important;
+            color: #ffffff !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+        }
+
+        /* Primary Action Buttons */
+        .stButton > button[kind="primary"] {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
+            color: #ffffff !important;
+            border: 1px solid #818cf8 !important;
+            font-size: 1.15rem !important;
+            font-weight: 600 !important;
+            padding: 0.85rem 2rem !important;
+            box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.4) !important;
+        }
+        .stButton > button[kind="primary"]:hover {
+            background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%) !important;
+            box-shadow: 0 6px 20px 0 rgba(99, 102, 241, 0.6) !important;
+            transform: translateY(-1px) !important;
+        }
+
+        /* Download Buttons */
+        .stDownloadButton > button {
+            background-color: #152238 !important;
+            color: #38bdf8 !important;
+            border: 1px solid #0369a1 !important;
+            font-weight: 600 !important;
+            border-radius: 8px !important;
+            width: 100% !important;
+            transition: all 0.2s ease !important;
+        }
+        .stDownloadButton > button:hover {
+            background-color: #0284c7 !important;
+            color: #ffffff !important;
+            box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3) !important;
+        }
+
+        /* Timeline Component */
+        .timeline-container { padding: 1rem 0; }
+        .timeline-item {
+            border-left: 2px solid #2d3f59;
+            padding-left: 1.5rem;
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+        .timeline-item.active { border-left-color: #818cf8; }
         .timeline-item.finished { border-left-color: #10b981; }
-        .timeline-icon { position: absolute; left: -11px; top: 0; width: 20px; height: 20px; border-radius: 50%; background: white; border: 2px solid #cbd5e1; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: #64748b; }
-        .timeline-item.active .timeline-icon { border-color: #b45309; background: #fffbeb; color: #b45309; }
-        .timeline-item.finished .timeline-icon { border-color: #10b981; background: #10b981; color: white; }
-        .gallery-item { background: white; border-radius: 8px; padding: 1rem; text-align: center; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
-        .stButton > button { background-color: #ecfdf5 !important; color: #065f46 !important; border: 1px solid #a7f3d0 !important; padding: 0.75rem 1.5rem; border-radius: 6px; font-weight: 600; width: 100%; transition: all 0.2s; }
-        .stButton > button:hover { transform: translateY(-1px); background-color: #d1fae5 !important; box-shadow: 0 4px 6px -1px rgba(5, 150, 105, 0.2); }
-        .stTextInput > div > div > input, .stTextArea > div > div > textarea { background-color: white !important; color: #0f172a !important; border: 1px solid #cbd5e1 !important; }
+        .timeline-item p {
+            color: #f1f5f9 !important;
+            font-size: 1rem;
+        }
+        .timeline-icon {
+            position: absolute;
+            left: -11px;
+            top: 0;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #111827;
+            border: 2px solid #475569;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
+        .timeline-item.active .timeline-icon {
+            border-color: #818cf8;
+            background: #312e81;
+            color: #c7d2fe;
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+        }
+        .timeline-item.finished .timeline-icon {
+            border-color: #10b981;
+            background: #064e3b;
+            color: #6ee7b7;
+        }
+
+        /* Gallery Component */
+        .gallery-item {
+            background: #151e2e !important;
+            border-radius: 8px !important;
+            padding: 0.85rem 1rem !important;
+            text-align: center !important;
+            border: 1px solid #223249 !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+        }
+        .gallery-item p {
+            color: #f8fafc !important;
+        }
+
+        /* Tabs Styling */
+        button[data-baseweb="tab"] {
+            color: #94a3b8 !important;
+            font-weight: 500 !important;
+        }
+        button[data-baseweb="tab"][aria-selected="true"] {
+            color: #818cf8 !important;
+            border-bottom-color: #6366f1 !important;
+            font-weight: 600 !important;
+        }
+
+        /* Expanders & Code */
+        [data-testid="stExpander"] {
+            background-color: #131b2a !important;
+            border: 1px solid #1f2d42 !important;
+            border-radius: 8px !important;
+            margin-bottom: 0.75rem !important;
+        }
+        [data-testid="stExpander"] summary {
+            color: #e2e8f0 !important;
+        }
+        [data-testid="stExpander"] summary:hover {
+            color: #ffffff !important;
+        }
+        pre, code {
+            background-color: #080c14 !important;
+            color: #e2e8f0 !important;
+            border: 1px solid #1f2d42 !important;
+            border-radius: 6px !important;
+        }
     </style>
     """,
         unsafe_allow_html=True,
@@ -75,6 +292,26 @@ def apply_custom_css():
 
 
 apply_custom_css()
+
+
+# Thread-safe global execution tracking across Streamlit reruns
+EXECUTION_STATE = {
+    "process": None,
+    "running": False,
+    "current_step": 0,
+    "logs": {
+        "Outline Generation": "",
+        "Literature Review": "",
+        "Figure Plotting": "",
+        "Section Writing": "",
+        "Content Refinement": "",
+    },
+    "exit_code": None,
+    "error_message": None,
+    "run_directory": None,
+    "completed": False,
+}
+EXECUTION_LOCK = threading.Lock()
 
 
 # Session State Initialization
@@ -105,6 +342,20 @@ def initialize_session_state():
 
 
 initialize_session_state()
+
+# Sync active background state if page was refreshed or rerun
+with EXECUTION_LOCK:
+    if EXECUTION_STATE["running"]:
+        st.session_state.running = True
+        st.session_state.locked = True
+        st.session_state.hide_inputs = True
+        st.session_state.thread_started = True
+    if EXECUTION_STATE["run_directory"]:
+        st.session_state.run_directory = EXECUTION_STATE["run_directory"]
+    st.session_state.current_step = EXECUTION_STATE["current_step"]
+    for step_k, step_log in EXECUTION_STATE["logs"].items():
+        if step_log:
+            st.session_state.logs[step_k] = step_log
 
 
 def render_sidebar():
@@ -142,10 +393,37 @@ def render_sidebar():
         except Exception as exception_object:
             st.sidebar.error(f"Error loading example: {exception_object}")
 
-    models = ["gemini-3.1-pro-preview", "gemini-3-flash-preview"]
-    selected_model = st.sidebar.selectbox(
-        "Select Model", models, disabled=st.session_state.locked
+    model_options = [
+        "nvidia/nemotron-3-ultra-550b-a55b",
+    ]
+    selected_model_option = st.sidebar.selectbox(
+        "Select Model", model_options, disabled=st.session_state.locked
     )
+    selected_model = "nvidia/nemotron-3-ultra-550b-a55b"
+
+    with st.sidebar.expander("🔑 API Keys & NIM Config", expanded=False):
+        nv_key_default = os.environ.get("NVIDIA_API_KEY", "")
+        nv_key_input = st.text_input(
+            "NVIDIA API Key",
+            value=nv_key_default,
+            type="password",
+            key="nv_api_key_input",
+            help="Your NVIDIA NIM API key (starts with nvapi-)",
+        )
+        if nv_key_input:
+            os.environ["NVIDIA_API_KEY"] = nv_key_input
+
+        nv_url_default = os.environ.get(
+            "NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"
+        )
+        nv_url_input = st.text_input(
+            "NVIDIA Base URL",
+            value=nv_url_default,
+            key="nv_base_url_input",
+            help="NVIDIA NIM API base URL (default: https://integrate.api.nvidia.com/v1, or local NIM endpoint)",
+        )
+        if nv_url_input:
+            os.environ["NVIDIA_BASE_URL"] = nv_url_input
 
     templates = ["cvpr2025", "iclr2025"]
     selected_template = st.sidebar.selectbox(
@@ -161,7 +439,7 @@ def render_sidebar():
     )
 
     st.sidebar.markdown(
-        "Your Email (for notification) <span style='color:red'>*</span>",
+        "Your Email (for notification) <span style='color:#f87171'>*</span>",
         unsafe_allow_html=True,
     )
     email_input = st.sidebar.text_input(
@@ -196,7 +474,7 @@ def render_gallery_tab():
     if not st.session_state.figures:
         if not st.session_state.running:
             st.markdown(
-                "<p style='color: gray; font-style: italic;'>No figures uploaded yet. Add figures from the input materials section.</p>",
+                "<p style='color: #94a3b8; font-style: italic;'>No figures uploaded yet. Add figures from the input materials section.</p>",
                 unsafe_allow_html=True,
             )
         else:
@@ -299,11 +577,216 @@ def render_pdf_and_snapshots(pdf_path, snapshots_directory, download_key):
 # ------------------------------------------------------------------------
 
 
+def run_pipeline(
+    execution_command,
+    working_directory,
+    steps_list,
+    recipient_email,
+    idea_content,
+    log_content,
+    figures_list,
+    run_dir,
+):
+    run_log_file = None
+    try:
+        set_death_signal = None
+        if hasattr(os, "name") and os.name == "posix":
+            try:
+                libc = ctypes.CDLL(None)
+                process_set_parent_death_signal = 1
+
+                def set_death_signal():
+                    libc.prctl(process_set_parent_death_signal, signal.SIGKILL)
+            except Exception:
+                set_death_signal = None
+
+        os.makedirs(run_dir, exist_ok=True)
+        raw_materials_directory = os.path.join(run_dir, "raw_materials")
+        figures_directory = os.path.join(raw_materials_directory, "figures")
+
+        os.makedirs(raw_materials_directory, exist_ok=True)
+        os.makedirs(figures_directory, exist_ok=True)
+
+        with open(
+            os.path.join(raw_materials_directory, "idea_sparse.md"),
+            "w",
+            encoding="utf-8",
+        ) as file_object:
+            file_object.write(idea_content)
+
+        with open(
+            os.path.join(raw_materials_directory, "experimental_log.md"),
+            "w",
+            encoding="utf-8",
+        ) as file_object:
+            file_object.write(log_content)
+
+        for figure in figures_list:
+            figure_path = os.path.join(figures_directory, figure["name"])
+            if isinstance(figure["file"], str):
+                shutil.copy(figure["file"], figure_path)
+            else:
+                with open(figure_path, "wb") as file_object:
+                    file_object.write(figure["file"].getvalue())
+
+        run_log_path = os.path.join(run_dir, "run.log")
+        run_log_file = open(run_log_path, "w", encoding="utf-8")
+
+        popen_kwargs = {
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.STDOUT,
+            "text": True,
+            "cwd": working_directory,
+            "env": os.environ.copy(),
+            "bufsize": 1,
+        }
+        if set_death_signal:
+            popen_kwargs["preexec_fn"] = set_death_signal
+
+        process = subprocess.Popen(execution_command, **popen_kwargs)
+
+        with EXECUTION_LOCK:
+            EXECUTION_STATE["process"] = process
+            EXECUTION_STATE["running"] = True
+            EXECUTION_STATE["current_step"] = 0
+
+        current_step_name = steps_list[0]
+
+        while True:
+            line = process.stdout.readline()
+            if not line and process.poll() is not None:
+                break
+            if line:
+                run_log_file.write(line)
+                run_log_file.flush()
+
+                target_step = current_step_name
+                step_idx = None
+                if (
+                    "Processing figure:" in line
+                    or (
+                        line.strip().startswith("[")
+                        and not line.strip().startswith("[DEBUG]")
+                    )
+                    or "Figure processing complete" in line
+                    or "Saved figures/" in line
+                    or "[DEBUG] Starting run_plotting_agent" in line
+                ):
+                    target_step = "Figure Plotting"
+                else:
+                    if (
+                        "Starting Fast Hybrid Literature Agent" in line
+                        or "=== Stage 1: Fast Hybrid Discovery" in line
+                    ):
+                        step_idx = 1
+                        current_step_name = steps_list[1]
+                        target_step = current_step_name
+                    elif (
+                        "Agent SectionWritingAgent starting" in line
+                        or "Starting SectionWritingAgent" in line
+                    ):
+                        step_idx = 2
+                        current_step_name = steps_list[2]
+                        target_step = current_step_name
+                    elif (
+                        "=== Initial Baseline Review ===" in line
+                        or "Starting dedicated formatting loop" in line
+                        or "Starting refinement iteration" in line
+                    ):
+                        step_idx = 3
+                        current_step_name = steps_list[3]
+                        target_step = current_step_name
+
+                with EXECUTION_LOCK:
+                    if (
+                        step_idx is not None
+                        and step_idx > EXECUTION_STATE["current_step"]
+                    ):
+                        EXECUTION_STATE["current_step"] = step_idx
+                    if target_step in EXECUTION_STATE["logs"]:
+                        EXECUTION_STATE["logs"][target_step] += line
+                    else:
+                        EXECUTION_STATE["logs"]["Content Refinement"] += line
+
+        exit_code = process.wait()
+
+        with EXECUTION_LOCK:
+            EXECUTION_STATE["exit_code"] = exit_code
+            if exit_code == 0:
+                EXECUTION_STATE["current_step"] = len(steps_list)
+                EXECUTION_STATE["completed"] = True
+            else:
+                EXECUTION_STATE["completed"] = False
+                EXECUTION_STATE["logs"][
+                    "Content Refinement"
+                ] += f"\n❌ Pipeline process exited with code {exit_code}."
+
+        if exit_code == 0 and recipient_email:
+            attachments = []
+            final_pdf = os.path.join(run_dir, "final_paper.pdf")
+            if os.path.exists(final_pdf):
+                attachments.append(final_pdf)
+
+            latex_writeup = os.path.join(run_dir, "latex_writeup")
+            final_tex = os.path.join(
+                run_dir,
+                "content_refinement_workdir",
+                "final_refined_paper.tex",
+            )
+            if os.path.exists(latex_writeup) and os.path.exists(final_tex):
+                try:
+                    with tempfile.TemporaryDirectory() as tmp_dir:
+                        zip_source_dir = os.path.join(tmp_dir, "latex_source")
+                        shutil.copytree(latex_writeup, zip_source_dir)
+                        for f_name in ["template.tex", "raw_draft_paper.tex"]:
+                            f_path = os.path.join(zip_source_dir, f_name)
+                            if os.path.exists(f_path):
+                                os.remove(f_path)
+                        shutil.copy(final_tex, os.path.join(zip_source_dir, "main.tex"))
+                        zip_output_base = os.path.join(run_dir, "latex_source")
+                        shutil.make_archive(zip_output_base, "zip", zip_source_dir)
+                        if os.path.exists(zip_output_base + ".zip"):
+                            attachments.append(zip_output_base + ".zip")
+                except Exception as e:
+                    print(f" >> Error preparing latex zip: {e}")
+                    with EXECUTION_LOCK:
+                        EXECUTION_STATE["logs"][
+                            "Content Refinement"
+                        ] += f"\n❌ Error preparing latex zip: {e}"
+
+            send_notification_email(
+                recipient_email, "Generated Paper", attachments=attachments
+            )
+    except Exception as e:
+        with EXECUTION_LOCK:
+            EXECUTION_STATE["error_message"] = str(e)
+            EXECUTION_STATE["logs"][
+                "Content Refinement"
+            ] += f"\n❌ Error in background process: {e}"
+    finally:
+        if run_log_file:
+            try:
+                run_log_file.close()
+            except Exception:
+                pass
+        with EXECUTION_LOCK:
+            EXECUTION_STATE["running"] = False
+
+
 def handle_live_execution(
     steps, email_input, selected_template, selected_model, enable_plotting
 ):
-    if st.session_state.running:
+    with EXECUTION_LOCK:
+        is_bg_running = EXECUTION_STATE["running"]
+        exit_code = EXECUTION_STATE["exit_code"]
+        if EXECUTION_STATE["run_directory"]:
+            st.session_state.run_directory = EXECUTION_STATE["run_directory"]
+        st.session_state.current_step = EXECUTION_STATE["current_step"]
+        for k, v in EXECUTION_STATE["logs"].items():
+            st.session_state.logs[k] = v
 
+    if st.session_state.get("running"):
+        # Check if background thread has not yet started
         if not st.session_state.get("thread_started"):
             if (
                 not st.session_state.get("saved_idea")
@@ -315,11 +798,9 @@ def handle_live_execution(
                 )
                 st.session_state.running = False
                 st.session_state.locked = False
-                st.session_state.hide_inputs = (
-                    False  # Fixed: ensures inputs pop back up if validation fails
-                )
+                st.session_state.hide_inputs = False
                 st.rerun()
-            st.session_state.thread_started = True
+                return
 
             base_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             parent_directory = os.path.dirname(base_directory)
@@ -362,169 +843,21 @@ def handle_live_execution(
                         "--plotting_model_name",
                         selected_model,
                         "--image_model_name",
-                        "gemini-3-pro-image-preview",
+                        selected_model,
                     ]
                 )
 
-            def run_pipeline(
-                execution_command,
-                working_directory,
-                steps_list,
-                recipient_email,
-                idea_content,
-                log_content,
-                figures_list,
-            ):
-                try:
-                    libc = ctypes.CDLL(None)
-                    process_set_parent_death_signal = 1
+            with EXECUTION_LOCK:
+                EXECUTION_STATE["running"] = True
+                EXECUTION_STATE["completed"] = False
+                EXECUTION_STATE["exit_code"] = None
+                EXECUTION_STATE["error_message"] = None
+                EXECUTION_STATE["current_step"] = 0
+                EXECUTION_STATE["run_directory"] = run_directory
+                for k in EXECUTION_STATE["logs"]:
+                    EXECUTION_STATE["logs"][k] = ""
 
-                    def set_death_signal():
-                        libc.prctl(process_set_parent_death_signal, signal.SIGKILL)
-
-                    os.makedirs(run_directory, exist_ok=True)
-                    raw_materials_directory = os.path.join(
-                        run_directory, "raw_materials"
-                    )
-                    figures_directory = os.path.join(raw_materials_directory, "figures")
-
-                    os.makedirs(raw_materials_directory, exist_ok=True)
-                    os.makedirs(figures_directory, exist_ok=True)
-
-                    with open(
-                        os.path.join(raw_materials_directory, "idea_sparse.md"), "w"
-                    ) as file_object:
-                        file_object.write(idea_content)
-
-                    with open(
-                        os.path.join(raw_materials_directory, "experimental_log.md"),
-                        "w",
-                    ) as file_object:
-                        file_object.write(log_content)
-
-                    for figure in figures_list:
-                        figure_path = os.path.join(figures_directory, figure["name"])
-                        if isinstance(figure["file"], str):
-                            shutil.copy(figure["file"], figure_path)
-                        else:
-                            with open(figure_path, "wb") as file_object:
-                                file_object.write(figure["file"].getvalue())
-
-                    process = subprocess.Popen(
-                        execution_command,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        cwd=working_directory,
-                        preexec_fn=set_death_signal,
-                    )
-
-                    current_step_name = steps_list[0]
-                    st.session_state.current_step = 0
-
-                    while True:
-                        line = process.stdout.readline()
-                        if not line and process.poll() is not None:
-                            break
-                        if line:
-                            if (
-                                "Processing figure:" in line
-                                or (
-                                    line.strip().startswith("[")
-                                    and not line.strip().startswith("[DEBUG]")
-                                )
-                                or "Figure processing complete" in line
-                                or "Saved figures/" in line
-                                or "[DEBUG] Starting run_plotting_agent" in line
-                            ):
-                                st.session_state.logs["Figure Plotting"] += line
-                            else:
-                                if "Starting Fast Hybrid Literature Agent" in line:
-                                    st.session_state.current_step = 1
-                                    current_step_name = steps_list[1]
-                                elif "Agent SectionWritingAgent starting" in line:
-                                    st.session_state.current_step = 2
-                                    current_step_name = steps_list[2]
-                                elif (
-                                    "=== Initial Baseline Review ===" in line
-                                    or "Starting dedicated formatting loop" in line
-                                ):
-                                    st.session_state.current_step = 3
-                                    current_step_name = steps_list[3]
-
-                                st.session_state.logs[current_step_name] += line
-
-                    if process.poll() == 0:
-                        st.session_state.current_step = len(steps_list)
-                        if recipient_email:
-                            attachments = []
-                            run_dir = st.session_state.run_directory
-
-                            # 1. Final PDF
-                            final_pdf = os.path.join(run_dir, "final_paper.pdf")
-                            if os.path.exists(final_pdf):
-                                attachments.append(final_pdf)
-
-                            # 2. LaTeX Zip
-                            latex_writeup = os.path.join(run_dir, "latex_writeup")
-                            final_tex = os.path.join(
-                                run_dir,
-                                "content_refinement_workdir",
-                                "final_refined_paper.tex",
-                            )
-
-                            if os.path.exists(latex_writeup) and os.path.exists(
-                                final_tex
-                            ):
-                                try:
-                                    with tempfile.TemporaryDirectory() as tmp_dir:
-                                        zip_source_dir = os.path.join(
-                                            tmp_dir, "latex_source"
-                                        )
-                                        shutil.copytree(latex_writeup, zip_source_dir)
-
-                                        for f_name in [
-                                            "template.tex",
-                                            "raw_draft_paper.tex",
-                                        ]:
-                                            f_path = os.path.join(
-                                                zip_source_dir, f_name
-                                            )
-                                            if os.path.exists(f_path):
-                                                os.remove(f_path)
-
-                                        shutil.copy(
-                                            final_tex,
-                                            os.path.join(zip_source_dir, "main.tex"),
-                                        )
-
-                                        zip_output_base = os.path.join(
-                                            run_dir, "latex_source"
-                                        )
-                                        shutil.make_archive(
-                                            zip_output_base, "zip", zip_source_dir
-                                        )
-
-                                        if os.path.exists(zip_output_base + ".zip"):
-                                            attachments.append(zip_output_base + ".zip")
-                                except Exception as e:
-                                    print(f" >> Error preparing latex zip: {e}")
-                                    st.session_state.logs[
-                                        "Content Refinement"
-                                    ] += f"\n❌ Error preparing latex zip: {e}"
-
-                            send_notification_email(
-                                recipient_email,
-                                "Generated Paper",
-                                attachments=attachments,
-                            )
-                except Exception as exception_object:
-                    st.session_state.logs[
-                        "Content Refinement"
-                    ] += f"\n❌ Error in thread: {exception_object}"
-                finally:
-                    st.session_state.running = False
-                    st.session_state.thread_started = False
+            st.session_state.thread_started = True
 
             worker_thread = threading.Thread(
                 target=run_pipeline,
@@ -536,14 +869,43 @@ def handle_live_execution(
                     st.session_state.saved_idea,
                     st.session_state.saved_log,
                     list(st.session_state.figures),
+                    run_directory,
                 ),
+                daemon=True,
             )
-            add_script_run_ctx(worker_thread)
             worker_thread.start()
             st.rerun()
+            return
 
-        time.sleep(2)
-        st.rerun()
+        # Background thread was started: check if finished or running
+        if not is_bg_running:
+            # Process terminated
+            st.session_state.running = False
+            st.session_state.thread_started = False
+            st.session_state.locked = False
+            st.rerun()
+            return
+        else:
+            # Still running: provide stop button & poll
+            if st.button("🛑 Stop / Terminate Pipeline", type="secondary"):
+                with EXECUTION_LOCK:
+                    proc = EXECUTION_STATE.get("process")
+                    if proc and proc.poll() is None:
+                        try:
+                            proc.terminate()
+                        except Exception:
+                            pass
+                    EXECUTION_STATE["running"] = False
+                    EXECUTION_STATE["exit_code"] = -1
+                st.session_state.running = False
+                st.session_state.thread_started = False
+                st.session_state.locked = False
+                st.warning("⚠️ Pipeline stopped by user.")
+                st.rerun()
+                return
+
+            time.sleep(2)
+            st.rerun()
 
 
 # ------------------------------------------------------------------------
@@ -586,7 +948,7 @@ if not st.session_state.get("hide_inputs"):
             )
             if idea_input_type == "Text":
                 st.markdown(
-                    "Enter your idea here <span style='color:red'>*</span>",
+                    "Enter your idea here <span style='color:#f87171'>*</span>",
                     unsafe_allow_html=True,
                 )
                 st.text_area(
@@ -598,7 +960,7 @@ if not st.session_state.get("hide_inputs"):
                 )
             else:
                 st.markdown(
-                    "Upload Idea file (.md/.txt) <span style='color:red'>*</span>",
+                    "Upload Idea file (.md/.txt) <span style='color:#f87171'>*</span>",
                     unsafe_allow_html=True,
                 )
                 uploaded_idea = st.file_uploader(
@@ -623,7 +985,7 @@ if not st.session_state.get("hide_inputs"):
             )
             if log_input_type == "Text":
                 st.markdown(
-                    "Enter experimental log here <span style='color:red'>*</span>",
+                    "Enter experimental log here <span style='color:#f87171'>*</span>",
                     unsafe_allow_html=True,
                 )
                 st.text_area(
@@ -635,7 +997,7 @@ if not st.session_state.get("hide_inputs"):
                 )
             else:
                 st.markdown(
-                    "Upload Exp Log file (.md/.txt) <span style='color:red'>*</span>",
+                    "Upload Exp Log file (.md/.txt) <span style='color:#f87171'>*</span>",
                     unsafe_allow_html=True,
                 )
                 uploaded_log = st.file_uploader(
@@ -666,14 +1028,6 @@ if not st.session_state.get("hide_inputs"):
 
             button_column, _ = st.columns([1, 2])
             with button_column:
-                st.markdown(
-                    """
-                <style>
-                    .stButton > button { background-color: #e0e7ff !important; color: #3730a3 !important; border: 1px solid #c7d2fe !important; }
-                </style>
-                """,
-                    unsafe_allow_html=True,
-                )
                 if st.button(
                     "Add Figure",
                     disabled=st.session_state.locked
@@ -692,16 +1046,6 @@ if not st.session_state.get("hide_inputs"):
                     time.sleep(3)
                     st.rerun()
 
-        st.markdown(
-            """
-        <style>
-            .stButton > button[kind="primary"] { background-color: #2563eb !important; color: white !important; font-size: 1.25rem !important; padding: 1rem 2rem !important; border: none !important; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important; }
-            .stButton > button[kind="primary"]:hover { background-color: #1d4ed8 !important; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important; }
-        </style>
-        """,
-            unsafe_allow_html=True,
-        )
-
         if st.button(
             "🚀 Begin Writing", type="primary", disabled=st.session_state.locked
         ):
@@ -718,8 +1062,29 @@ if not st.session_state.get("hide_inputs"):
 else:
     if st.session_state.get("running") or st.session_state.get("thread_started"):
         st.info(
-            "🚀 Paper generation in progress! This may take 35-45 minutes. Please do not close this tab."
+            "🚀 Paper generation in progress! This pipeline conducts literature discovery, generates figures, drafts sections, and refines LaTeX (takes ~30-40 minutes). Please keep this tab open."
         )
+
+    if st.session_state.get("run_directory"):
+        log_file = os.path.join(st.session_state.run_directory, "run.log")
+        if os.path.exists(log_file):
+            try:
+                with open(log_file, "r", encoding="utf-8", errors="ignore") as lf:
+                    tail_lines = lf.readlines()[-15:]
+                if tail_lines:
+                    st.markdown(
+                        "<div style='background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; margin-bottom: 16px;'>"
+                        "<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;'>"
+                        "<span style='color: #38bdf8; font-weight: 600; font-size: 0.9rem;'>📡 Live Terminal Output</span>"
+                        "<span style='color: #4ade80; font-size: 0.8rem;'>● Processing</span>"
+                        "</div>"
+                        + f"<pre style='background: #020617; color: #cbd5e1; padding: 10px; border-radius: 6px; font-size: 0.82rem; max-height: 220px; overflow-y: auto; margin: 0; white-space: pre-wrap;'>{''.join(tail_lines)}</pre>"
+                        + "</div>",
+                        unsafe_allow_html=True,
+                    )
+            except Exception:
+                pass
+
     elif (
         not st.session_state.get("running")
         and st.session_state.get("thread_started", False) is False
@@ -845,7 +1210,7 @@ else:
     with tab_inputs:
         st.header("📥 User Inputs")
         st.markdown(
-            "<h3 style='background-color: #ffe6e6; padding: 5px; border-radius: 3px;'>Idea</h3>",
+            "<div style='background: rgba(99, 102, 241, 0.15); border-left: 4px solid #6366f1; padding: 8px 14px; border-radius: 6px; margin: 12px 0 8px 0;'><h4 style='margin: 0; color: #c7d2fe;'>💡 Research Idea</h4></div>",
             unsafe_allow_html=True,
         )
         st.markdown(
@@ -854,7 +1219,7 @@ else:
             )
         )
         st.markdown(
-            "<h3 style='background-color: #ffffcc; padding: 5px; border-radius: 3px;'>Experimental Log</h3>",
+            "<div style='background: rgba(16, 185, 129, 0.15); border-left: 4px solid #10b981; padding: 8px 14px; border-radius: 6px; margin: 16px 0 8px 0;'><h4 style='margin: 0; color: #a7f3d0;'>📊 Experimental Log</h4></div>",
             unsafe_allow_html=True,
         )
         st.markdown(

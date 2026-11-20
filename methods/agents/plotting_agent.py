@@ -31,8 +31,8 @@ from utils.paper_banana_utils import (
 def process_single_figure(
     fig_plan,
     raw_materials_dir,
-    model_name="gemini-3.1-pro-preview",
-    image_model_name="gemini-3-pro-image-preview",
+    model_name="nvidia/nemotron-3-ultra-550b-a55b",
+    image_model_name="nvidia/nemotron-3-ultra-550b-a55b",
     max_critic_rounds=3,
 ):
     print(f"Processing figure: {fig_plan.get('figure_id', 'Unknown')}")
@@ -204,8 +204,8 @@ def process_single_figure(
 class PlottingAgent:
     def __init__(
         self,
-        model_name: str = "gemini-3.1-pro-preview",
-        image_model_name: str = "gemini-3-pro-image-preview",
+        model_name: str = "nvidia/nemotron-3-ultra-550b-a55b",
+        image_model_name: str = "nvidia/nemotron-3-ultra-550b-a55b",
         max_critic_rounds: int = 3,
     ):
         self.model_name = model_name

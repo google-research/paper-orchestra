@@ -51,12 +51,12 @@ def main():
     )
     parser.add_argument(
         "--writer_model_name",
-        default="gemini-3.1-pro-preview",
+        default="nvidia/nemotron-3-ultra-550b-a55b",
         help="LLM for writer and literature agents.",
     )
     parser.add_argument(
         "--reflection_model_name",
-        default="gemini-3.1-pro-preview",
+        default="nvidia/nemotron-3-ultra-550b-a55b",
         help="LLM for reflection agents.",
     )
     parser.add_argument(
@@ -72,12 +72,12 @@ def main():
     )
     parser.add_argument(
         "--plotting_model_name",
-        default="gemini-3.1-pro-preview",
+        default="nvidia/nemotron-3-ultra-550b-a55b",
         help="LLM for the plotting agent.",
     )
     parser.add_argument(
         "--image_model_name",
-        default="gemini-3-pro-image-preview",
+        default="nvidia/nemotron-3-ultra-550b-a55b",
         help="Vision model if required by plotting agent.",
     )
     parser.add_argument(

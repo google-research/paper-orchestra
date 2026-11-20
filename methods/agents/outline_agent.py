@@ -22,7 +22,7 @@ from methods.prompts.outline_agent import outline_agent_system_prompt
 
 class OutlineAgent:
     def __init__(
-        self, model_name: str = "gemini-3.1-pro-preview", cutoff_date: str = "2024-10"
+        self, model_name: str = "nvidia/nemotron-3-ultra-550b-a55b", cutoff_date: str = "2024-10"
     ):
         self.model_name = model_name
         self.cutoff_date = cutoff_date

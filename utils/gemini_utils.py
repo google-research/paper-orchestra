@@ -48,7 +48,11 @@ def get_genai_client() -> genai.Client:
                 vertex_ai_location = os.getenv("VERTEX_AI_LOCATION")
                 gemini_api_key = os.getenv("GEMINI_API_KEY")
 
-                if vertex_ai_project and vertex_ai_location:
+                if (
+                    vertex_ai_project
+                    and not vertex_ai_project.startswith("your_")
+                    and vertex_ai_location
+                ):
                     print(
                         f"Using Vertex AI configuration. Project: {vertex_ai_project}, Location: {vertex_ai_location}"
                     )
@@ -57,7 +61,7 @@ def get_genai_client() -> genai.Client:
                         project=vertex_ai_project,
                         location=vertex_ai_location,
                     )
-                elif gemini_api_key:
+                elif gemini_api_key and not gemini_api_key.startswith("your_"):
                     print("Using Gemini API Key configuration.")
                     _genai_client = genai.Client(api_key=gemini_api_key)
                 else:
@@ -155,6 +159,49 @@ def parse_gemini_json_latex_response(response_text: str) -> Dict[str, Any]:
     return json.dumps(result)
 
 
+def _convert_contents_to_openai_format(contents: Any) -> list:
+    """Converts Gemini contents / types.Part lists into OpenAI/NIM compatible message format."""
+    if isinstance(contents, str):
+        return [{"type": "text", "text": contents}]
+
+    parts = contents if isinstance(contents, (list, tuple)) else [contents]
+    content_list = []
+    text_buffer = []
+
+    for item in parts:
+        if isinstance(item, str):
+            text_buffer.append(item)
+        elif hasattr(item, "text") and item.text:
+            text_buffer.append(item.text)
+        elif hasattr(item, "inline_data") and item.inline_data:
+            mime = getattr(item.inline_data, "mime_type", "")
+            data_bytes = getattr(item.inline_data, "data", b"")
+            if "pdf" in mime:
+                try:
+                    import fitz
+                    doc = fitz.open(stream=data_bytes, filetype="pdf")
+                    extracted = "\n".join(page.get_text() for page in doc)
+                    text_buffer.append(f"\n[Attached PDF Content]:\n{extracted}\n")
+                except Exception as e:
+                    text_buffer.append(f"\n[Attached PDF could not be parsed: {e}]\n")
+            elif "image" in mime:
+                b64 = base64.b64encode(data_bytes).decode("utf-8")
+                if text_buffer:
+                    content_list.append({"type": "text", "text": "\n\n".join(text_buffer)})
+                    text_buffer = []
+                content_list.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime};base64,{b64}"}
+                })
+        elif isinstance(item, dict):
+            content_list.append(item)
+
+    if text_buffer:
+        content_list.append({"type": "text", "text": "\n\n".join(text_buffer)})
+
+    return content_list
+
+
 def call_gemini_with_contents(
     contents: types.Content,
     model_name: str,
@@ -165,8 +212,45 @@ def call_gemini_with_contents(
     check_parsed_response_not_none: bool = True,
 ):
     """
-    Calls the Gemini API (text-only) with retry logic and exponential backoff.
+    Calls the LLM API with retry logic. Dispatches to NVIDIA NIM or OpenAI
+    if a non-Gemini model is provided, otherwise calls Gemini API.
     """
+    from utils.nvidia_utils import is_nvidia_model, call_nvidia_models_with_content
+    from utils.openai_utils import call_openai_models_with_content
+
+    name_lower = model_name.lower() if model_name else ""
+    is_openai = "gpt" in name_lower or "o1" in name_lower or "o3" in name_lower
+    is_nvidia = is_nvidia_model(model_name)
+
+    if is_nvidia or is_openai:
+        content_items = _convert_contents_to_openai_format(contents)
+        system_prompt = None
+        gen_configs = dict(generation_configs) if generation_configs else {}
+        if "system_instruction" in gen_configs:
+            system_prompt = gen_configs.pop("system_instruction")
+
+        if is_nvidia:
+            return call_nvidia_models_with_content(
+                content=content_items,
+                model_name=model_name,
+                max_retries=max_retries,
+                base_interval_sec=base_interval_sec,
+                result_parsing_func=result_parsing_func,
+                generation_configs=gen_configs,
+                check_parsed_response_not_none=check_parsed_response_not_none,
+                system_prompt=system_prompt,
+            )
+        else:
+            return call_openai_models_with_content(
+                content=content_items,
+                model_name=model_name,
+                max_retries=max_retries,
+                base_interval_sec=base_interval_sec,
+                result_parsing_func=result_parsing_func,
+                generation_configs=gen_configs,
+                check_parsed_response_not_none=check_parsed_response_not_none,
+                system_prompt=system_prompt,
+            )
 
     raw_response = None
     parsed_response = None
@@ -289,10 +373,18 @@ def generate_image_with_gemini(
     """
     Directly calls Gemini for image generation and returns base64.
     """
+    if model_name and (model_name.startswith("nvidia/") or "nemotron" in model_name.lower()):
+        return None
+
     if generation_configs is None:
         generation_configs = {}
 
-    genai_client = get_genai_client()
+    try:
+        genai_client = get_genai_client()
+    except Exception as e:
+        print(f"Warning: Gemini API client unavailable for image generation: {e}")
+        return None
+
     for attempt in range(max_retries):
         try:
             config_args = {

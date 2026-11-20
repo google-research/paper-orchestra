@@ -38,7 +38,7 @@ class ContentRefinementAgent:
         experimental_log_path: str,
         citation_map_path: str,
         guidelines_path: str,
-        model_name: str = "gemini-3.1-pro-preview",
+        model_name: str = "nvidia/nemotron-3-ultra-550b-a55b",
         max_reflections: int = 3,
         work_dir: str = "./paper_workspace",
     ):

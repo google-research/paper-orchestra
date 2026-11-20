@@ -50,7 +50,7 @@ class SectionWritingAgent:
         citation_map_path: str,
         figures_info_path: str,
         guidelines_path: str,
-        model_name: str = "gemini-3.1-pro-preview",
+        model_name: str = "nvidia/nemotron-3-ultra-550b-a55b",
     ):
 
         self.model_name = model_name

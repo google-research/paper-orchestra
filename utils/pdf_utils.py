@@ -20,12 +20,63 @@ import rich
 import traceback
 import subprocess
 import os.path as osp
+import re
+import base64
 
 import pymupdf4llm  # type: ignore
 import pymupdf  # type: ignore
 import numpy as np
 import cv2
 from pypdf import PdfReader  # type: ignore
+
+# 1x1 minimal RGBA PNG in base64 (67 bytes) to satisfy XeTeX/tectonic image loader
+_DUMMY_PNG_BYTES = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+)
+
+
+def _ensure_tex_figures_exist(cwd: str, tex_path: str):
+    """Scans the TeX file for \\includegraphics references and ensures placeholder image
+    files exist on disk so Tectonic / XeTeX xdvipdfmx never halts on missing image files."""
+    try:
+        if not os.path.exists(tex_path):
+            return
+        with open(tex_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+
+        pattern = r"\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}"
+        for match in re.finditer(pattern, content):
+            raw_path = match.group(1).strip()
+            if not raw_path:
+                continue
+
+            candidate = os.path.join(cwd, raw_path)
+            found = False
+            for ext in ["", ".png", ".jpg", ".jpeg", ".pdf"]:
+                test_path = (
+                    candidate
+                    if ext == ""
+                    else (candidate + ext if not candidate.endswith(ext) else candidate)
+                )
+                if os.path.exists(test_path):
+                    found = True
+                    break
+
+            if not found:
+                target_path = candidate
+                if not any(
+                    target_path.lower().endswith(e)
+                    for e in [".png", ".jpg", ".jpeg", ".pdf"]
+                ):
+                    target_path += ".png"
+                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                with open(target_path, "wb") as img_f:
+                    img_f.write(_DUMMY_PNG_BYTES)
+                print(
+                    f"[tectonic] Created placeholder image for missing figure: {raw_path}"
+                )
+    except Exception as e:
+        print(f"[tectonic] Warning while verifying LaTeX figures: {e}")
 
 
 def load_paper(pdf_path, num_pages=None, min_size=100):
@@ -166,38 +217,44 @@ def get_paper_references_from_pdf(
     return None
 
 
-def compile_latex(cwd, pdf_file, texfile_name="template", timeout=30):
+def compile_latex(cwd, pdf_file, texfile_name="template", timeout=120):
     import os, shutil, subprocess, traceback, rich
 
     source_pdf = os.path.join(cwd, f"{texfile_name}.pdf")
+    tex_path = os.path.join(cwd, f"{texfile_name}.tex")
     if os.path.exists(source_pdf):
-        os.remove(source_pdf)
+        try:
+            os.remove(source_pdf)
+        except Exception:
+            pass
+
+    # Ensure all figures referenced in the TeX file exist to prevent xdvipdfmx failure
+    _ensure_tex_figures_exist(cwd, tex_path)
 
     env = dict(os.environ)
     for var in ["TEXINPUTS", "TEXMFHOME", "TEXMF", "TEXMFVAR", "TEXMFCONFIG"]:
         env.pop(var, None)
 
-    commands = [
-        ["pdflatex", "-interaction=nonstopmode", f"{texfile_name}.tex"],
-        ["bibtex", texfile_name],
-        ["pdflatex", "-interaction=nonstopmode", f"{texfile_name}.tex"],
-        ["pdflatex", "-interaction=nonstopmode", f"{texfile_name}.tex"],
-    ]
-
+    tectonic_bin = shutil.which("tectonic") or (
+        r"C:\WINDOWS\system32\tectonic.exe"
+        if os.path.exists(r"C:\WINDOWS\system32\tectonic.exe")
+        else None
+    )
     execution_logs = []
 
-    for command in commands:
-        cmd_str = " ".join(command)
+    # 1. Primary compilation with Tectonic (handles all passes & bibtex automatically)
+    if tectonic_bin:
+        cmd = [tectonic_bin, "-Z", "continue-on-errors", f"{texfile_name}.tex"]
+        cmd_str = " ".join(cmd)
         try:
             result = subprocess.run(
-                command,
+                cmd,
                 cwd=cwd,
-                capture_output=True,  # Captures stdout/stderr silently
+                capture_output=True,
                 text=True,
                 timeout=timeout,
                 env=env,
             )
-
             execution_logs.append(
                 {
                     "cmd": cmd_str,
@@ -206,7 +263,10 @@ def compile_latex(cwd, pdf_file, texfile_name="template", timeout=30):
                     "stderr": result.stderr,
                 }
             )
-
+            if os.path.exists(source_pdf):
+                rich.print(
+                    f"[bold green]✔ Tectonic successfully compiled {texfile_name}.tex to PDF[/bold green]"
+                )
         except subprocess.TimeoutExpired:
             execution_logs.append(
                 {"cmd": cmd_str, "error": f"TIMEOUT after {timeout}s"}
@@ -214,15 +274,56 @@ def compile_latex(cwd, pdf_file, texfile_name="template", timeout=30):
         except Exception as e:
             execution_logs.append({"cmd": cmd_str, "error": str(e)})
 
+    # 2. Fallback to pdflatex + bibtex if tectonic is not available or didn't produce the PDF
+    if not os.path.exists(source_pdf):
+        pdflatex_bin = shutil.which("pdflatex")
+        if pdflatex_bin:
+            fallback_commands = [
+                ["pdflatex", "-interaction=nonstopmode", f"{texfile_name}.tex"],
+                ["bibtex", texfile_name],
+                ["pdflatex", "-interaction=nonstopmode", f"{texfile_name}.tex"],
+                ["pdflatex", "-interaction=nonstopmode", f"{texfile_name}.tex"],
+            ]
+            for command in fallback_commands:
+                cmd_str = " ".join(command)
+                try:
+                    result = subprocess.run(
+                        command,
+                        cwd=cwd,
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout,
+                        env=env,
+                    )
+                    execution_logs.append(
+                        {
+                            "cmd": cmd_str,
+                            "returncode": result.returncode,
+                            "stdout": result.stdout,
+                            "stderr": result.stderr,
+                        }
+                    )
+                except subprocess.TimeoutExpired:
+                    execution_logs.append(
+                        {"cmd": cmd_str, "error": f"TIMEOUT after {timeout}s"}
+                    )
+                except Exception as e:
+                    execution_logs.append({"cmd": cmd_str, "error": str(e)})
+
     has_timeout = any(
         "error" in log and "TIMEOUT" in log["error"] for log in execution_logs
     )
 
     if os.path.exists(source_pdf) and not has_timeout:
         try:
-            shutil.move(source_pdf, pdf_file)
+            target_dir = os.path.dirname(os.path.abspath(pdf_file))
+            if target_dir:
+                os.makedirs(target_dir, exist_ok=True)
+            if os.path.abspath(source_pdf) != os.path.abspath(pdf_file):
+                shutil.copy2(source_pdf, pdf_file)
+            rich.print(f"[bold green]✔ Final PDF ready at: {pdf_file}[/bold green]")
         except Exception:
-            rich.print(f"[bold red]Error moving generated PDF to {pdf_file}[/bold red]")
+            rich.print(f"[bold red]Error copying generated PDF to {pdf_file}[/bold red]")
             print(traceback.format_exc())
     else:
         rich.print(

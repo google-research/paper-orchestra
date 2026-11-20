@@ -69,7 +69,7 @@ class HybridLiteratureAgent:
         latex_template_path: str,
         conference_guidelines_path: str,
         output_dir: str,
-        model_name: str = "gemini-3.1-pro-preview",
+        model_name: str = "nvidia/nemotron-3-ultra-550b-a55b",
         max_workers: int = 5,
     ):
         self.output_dir = output_dir
@@ -461,14 +461,24 @@ class HybridLiteratureAgent:
             {DiscoveryResult.model_json_schema()}
             """
 
-        response_dict = call_gemini_with_contents(
-            model_name="gemini-3-flash-preview",
-            contents=[prompt],
-            generation_configs={
-                "tools": [self.google_search_tool],
-                "temperature": 0.1 if task.get("search_type") == "targeted" else 0.4,
-            },
-        )
+        has_gemini = bool(os.getenv("GEMINI_API_KEY") or (os.getenv("VERTEX_AI_PROJECT") and os.getenv("VERTEX_AI_LOCATION")))
+        if has_gemini and "gemini" in self.model_name.lower():
+            response_dict = call_gemini_with_contents(
+                model_name="gemini-3-flash-preview",
+                contents=[prompt],
+                generation_configs={
+                    "tools": [self.google_search_tool],
+                    "temperature": 0.1 if task.get("search_type") == "targeted" else 0.4,
+                },
+            )
+        else:
+            from utils.llm_backend_utils import call_llm_with_text_prompt
+            response_dict = call_llm_with_text_prompt(
+                prompt=prompt,
+                model_name=self.model_name,
+                generation_configs={"temperature": 0.2},
+                return_json=True,
+            )
 
         if response_dict["parsed_response"]:
             return response_dict["parsed_response"].get("candidates", [])
