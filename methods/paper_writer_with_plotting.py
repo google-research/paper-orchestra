@@ -105,13 +105,18 @@ def write_single_paper(
                 model_name=writer_model_name, cutoff_date=research_cutoff
             )
             outline_file_path = osp.join(base_dir, "outline.json")
-            outline_agent.run(
-                idea_file=idea_file_path,
-                experimental_log_file=experimental_log_file_path,
-                latex_template_file=latex_template_path,
-                conference_guidelines_file=guidelines_path,
-                output_filepath=outline_file_path,
-            )
+            if osp.exists(outline_file_path) and osp.getsize(outline_file_path) > 1000:
+                print(
+                    f"[INFO] Found existing outline.json at '{outline_file_path}' ({osp.getsize(outline_file_path)} bytes). Reusing outline..."
+                )
+            else:
+                outline_agent.run(
+                    idea_file=idea_file_path,
+                    experimental_log_file=experimental_log_file_path,
+                    latex_template_file=latex_template_path,
+                    conference_guidelines_file=guidelines_path,
+                    output_filepath=outline_file_path,
+                )
             time_log["OutlineAgent"] = time.time() - _t0
 
             ###############################################################################################
