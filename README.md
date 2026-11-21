@@ -88,6 +88,10 @@ Claude models are supported wherever the code goes through `utils/llm_backend_ut
 The outline, literature review, content refinement and plotting agents call Gemini directly (Google Search
 grounding and image generation), so the full writing pipeline still needs Gemini credentials.
 
+`agent_review` asks for a `THOUGHT:` section before the JSON. `claude-opus-5-5` declines that prompt
+(`stop_reason: "refusal"`, category `reasoning_extraction`), which surfaces as `AnthropicRefusalError`.
+`claude-sonnet-5-5` and `claude-opus-4-8` complete it.
+
 ### Interactive Demo
 
 We provide an interactive Streamlit demo for the paper generation pipeline. For instructions on how to run and use it, please refer to the [README.md](frontend/README.md) in the `frontend` directory.
