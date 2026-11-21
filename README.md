@@ -33,9 +33,11 @@ Acting like an orchestrated team of specialized agents, it handles outline gener
     # You need to specify related keys if you want to use the model
     # For example, if you want to use Gemini models, you need to specify either VERTEX_AI_PROJECT and VERTEX_AI_LOCATION, or GEMINI_API_KEY
     # If you want to use OpenAI models, you need to specify OPENAI_API_KEY
+    # If you want to use Anthropic (Claude) models, you need to specify ANTHROPIC_API_KEY
     
     SEMANTIC_SCHOLAR_API_KEY=your_semantic_scholar_api_key
     OPENAI_API_KEY=your_openai_api_key
+    ANTHROPIC_API_KEY=your_anthropic_api_key
     VERTEX_AI_PROJECT=your_vertex_ai_project
     VERTEX_AI_LOCATION=your_vertex_ai_location
     GEMINI_API_KEY=your_gemini_api_key
@@ -75,6 +77,20 @@ python paper_writing_cli.py \
 *   `--use_plotting`: Enable the plotting agent workflow to generate figures from code (Default: `False`).
 *   `--writer_model_name`: LLM for writer and literature agents.
 *   `--reflection_model_name`: LLM for reflection agents.
+
+### Model Backends
+
+The backend is chosen from the model name. Names containing `claude` (e.g. `claude-opus-5-5`) go to the Anthropic API,
+names containing `gpt`, `o1` or `o3` go to OpenAI, and everything else goes to Gemini.
+
+Claude models are supported wherever the code goes through `utils/llm_backend_utils.py`: the autoraters
+`agent_review`, `lit_review_quality`, `sxs_lit_review_quality` and `citation_f1`, and the section writing agent.
+The outline, literature review, content refinement and plotting agents call Gemini directly (Google Search
+grounding and image generation), so the full writing pipeline still needs Gemini credentials.
+
+`agent_review` asks for a `THOUGHT:` section before the JSON. `claude-opus-5-5` declines that prompt
+(`stop_reason: "refusal"`, category `reasoning_extraction`), which surfaces as `AnthropicRefusalError`.
+`claude-sonnet-5-5` and `claude-opus-4-8` complete it.
 
 ### Interactive Demo
 
