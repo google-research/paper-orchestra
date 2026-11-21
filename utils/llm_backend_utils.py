@@ -23,6 +23,13 @@ from utils.gemini_utils import (
     call_gemini_with_contents,
     call_gemini_with_images,
 )
+from utils.anthropic_utils import (
+    call_anthropic_with_content,
+    call_anthropic_with_text_prompt,
+    get_anthropic_image_part_from_path,
+    get_anthropic_pdf_part_from_path,
+    is_anthropic_model,
+)
 from utils.openai_utils import (
     call_openai_models_with_text_prompt,
     call_openai_models_with_content,
@@ -40,7 +47,7 @@ def get_llm_parser(model_name: str, return_json: bool = True) -> Callable:
     if not return_json:
         return identity_parse
 
-    if (
+    if is_anthropic_model(model_name) or (
         "gpt" in model_name.lower()
         or "o1" in model_name.lower()
         or "o3" in model_name.lower()
@@ -59,7 +66,7 @@ def call_llm_with_text_prompt(
     result_parsing_func: Optional[Callable] = None,
 ) -> Dict[str, Any]:
     """
-    Unified function to call either Gemini or OpenAI models based on the model_name.
+    Unified function to call Gemini, OpenAI or Anthropic models based on the model_name.
     """
     parser = (
         result_parsing_func
@@ -69,6 +76,16 @@ def call_llm_with_text_prompt(
 
     if generation_configs is None:
         generation_configs = {}
+
+    if is_anthropic_model(model_name):
+        return call_anthropic_with_text_prompt(
+            prompt=prompt,
+            model_name=model_name,
+            generation_configs=generation_configs,
+            result_parsing_func=parser,
+            check_parsed_response_not_none=check_parsed_response_not_none,
+            system_prompt=generation_configs.get("system_instruction"),
+        )
 
     if (
         "gpt" in model_name.lower()
@@ -112,7 +129,7 @@ def call_llm_with_images(
     result_parsing_func: Optional[Callable] = None,
 ) -> Dict[str, Any]:
     """
-    Unified function to call either Gemini or OpenAI models with images based on the model_name.
+    Unified function to call Gemini, OpenAI or Anthropic models with images based on the model_name.
     """
     parser = (
         result_parsing_func
@@ -122,6 +139,20 @@ def call_llm_with_images(
 
     if generation_configs is None:
         generation_configs = {}
+
+    if is_anthropic_model(model_name):
+        content = []
+        for image_path in images:
+            content.extend(get_anthropic_image_part_from_path(image_path))
+        content.append({"type": "text", "text": prompt})
+        return call_anthropic_with_content(
+            content=content,
+            model_name=model_name,
+            generation_configs=generation_configs,
+            result_parsing_func=parser,
+            check_parsed_response_not_none=check_parsed_response_not_none,
+            system_prompt=generation_configs.get("system_instruction"),
+        )
 
     if (
         "gpt" in model_name.lower()
@@ -173,13 +204,23 @@ def call_llm_with_pdf(
 ) -> Dict[str, Any]:
     """
     Unified function to evaluate a PDF.
-    Passes raw PDF bytes to Gemini, and extracted text to OpenAI.
+    Passes the raw PDF to Gemini and Anthropic, and extracted text to OpenAI.
     """
     parser = (
         result_parsing_func
         if result_parsing_func is not None
         else get_llm_parser(model_name, return_json)
     )
+
+    if is_anthropic_model(model_name):
+        content = get_anthropic_pdf_part_from_path(pdf_path) + [{"type": "text", "text": prompt}]
+        return call_anthropic_with_content(
+            content=content,
+            model_name=model_name,
+            result_parsing_func=parser,
+            check_parsed_response_not_none=check_parsed_response_not_none,
+            system_prompt=system_instruction,
+        )
 
     if (
         "gpt" in model_name.lower()
