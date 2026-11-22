@@ -23,6 +23,13 @@ from utils.gemini_utils import (
     call_gemini_with_contents,
     call_gemini_with_images,
 )
+from utils.anthropic_utils import (
+    is_claude_model,
+    call_claude_with_text_prompt,
+    call_claude_with_images,
+    call_claude_with_pdf,
+    call_claude_with_contents,
+)
 from utils.openai_utils import (
     call_openai_models_with_text_prompt,
     call_openai_models_with_content,
@@ -69,6 +76,15 @@ def call_llm_with_text_prompt(
 
     if generation_configs is None:
         generation_configs = {}
+
+    if is_claude_model(model_name):
+        return call_claude_with_text_prompt(
+            prompt=prompt,
+            model_name=model_name,
+            generation_configs=generation_configs,
+            result_parsing_func=parser,
+            check_parsed_response_not_none=check_parsed_response_not_none,
+        )
 
     if (
         "gpt" in model_name.lower()
@@ -122,6 +138,16 @@ def call_llm_with_images(
 
     if generation_configs is None:
         generation_configs = {}
+
+    if is_claude_model(model_name):
+        return call_claude_with_images(
+            prompt=prompt,
+            images=images,
+            model_name=model_name,
+            generation_configs=generation_configs,
+            result_parsing_func=parser,
+            check_parsed_response_not_none=check_parsed_response_not_none,
+        )
 
     if (
         "gpt" in model_name.lower()
@@ -181,6 +207,16 @@ def call_llm_with_pdf(
         else get_llm_parser(model_name, return_json)
     )
 
+    if is_claude_model(model_name):
+        return call_claude_with_pdf(
+            pdf_path=pdf_path,
+            prompt=prompt,
+            model_name=model_name,
+            system_instruction=system_instruction,
+            result_parsing_func=parser,
+            check_parsed_response_not_none=check_parsed_response_not_none,
+        )
+
     if (
         "gpt" in model_name.lower()
         or "o1" in model_name.lower()
@@ -220,3 +256,36 @@ def call_llm_with_pdf(
             check_parsed_response_not_none=check_parsed_response_not_none,
         )
         return response_dict
+
+
+def call_llm_with_contents(
+    contents,
+    model_name: str,
+    max_retries: int = 5,
+    base_interval_sec: int = 5,
+    result_parsing_func: Callable = parse_gemini_json_results,
+    generation_configs: Optional[Dict[str, Any]] = None,
+    check_parsed_response_not_none: bool = True,
+) -> Dict[str, Any]:
+    """
+    Drop-in replacement for gemini_utils.call_gemini_with_contents that also routes claude-* model names to Anthropic.
+    """
+    if is_claude_model(model_name):
+        return call_claude_with_contents(
+            contents=contents,
+            model_name=model_name,
+            max_retries=max_retries,
+            base_interval_sec=base_interval_sec,
+            result_parsing_func=result_parsing_func,
+            generation_configs=generation_configs,
+            check_parsed_response_not_none=check_parsed_response_not_none,
+        )
+    return call_gemini_with_contents(
+        contents=contents,
+        model_name=model_name,
+        max_retries=max_retries,
+        base_interval_sec=base_interval_sec,
+        result_parsing_func=result_parsing_func,
+        generation_configs=generation_configs or {},
+        check_parsed_response_not_none=check_parsed_response_not_none,
+    )

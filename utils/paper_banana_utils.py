@@ -22,10 +22,10 @@ import json_repair
 from typing import Dict, Any, List, Tuple
 from google.genai import types
 
-from utils.gemini_utils import (
-    call_gemini_with_text_prompt,
-    call_gemini_with_contents,
-    generate_image_with_gemini,
+from utils.gemini_utils import generate_image_with_gemini
+from utils.llm_backend_utils import (
+    call_llm_with_text_prompt,
+    call_llm_with_contents,
 )
 
 cur_dir = os.path.dirname(os.path.realpath(__file__))
@@ -375,7 +375,7 @@ def retrieve_few_shot_examples(
 
     user_prompt += "Now, based on the Target Input and the Candidate Pool, select the Top 10 most relevant examples."
 
-    response_dict = call_gemini_with_contents(
+    response_dict = call_llm_with_contents(
         contents=[
             types.Part.from_text(text=system_prompt),
             types.Part.from_text(text=user_prompt),
@@ -439,7 +439,7 @@ def generate_figure_caption(
                 data=base64.b64decode(base64_image), mime_type="image/jpeg"
             ),
         ]
-        response_dict = call_gemini_with_contents(
+        response_dict = call_llm_with_contents(
             contents=contents,
             model_name=model_name,
             result_parsing_func=identity_parse,
@@ -447,7 +447,7 @@ def generate_figure_caption(
             check_parsed_response_not_none=True,
         )
     else:
-        response_dict = call_gemini_with_text_prompt(
+        response_dict = call_llm_with_text_prompt(
             prompt=prompt,
             model_name=model_name,
             result_parsing_func=identity_parse,
@@ -523,7 +523,7 @@ def predict_figure_content(
 
     contents.append(types.Part.from_text(text=user_prompt))
 
-    response_dict = call_gemini_with_contents(
+    response_dict = call_llm_with_contents(
         contents=contents,
         model_name=model_name,
         result_parsing_func=identity_parse,
@@ -562,7 +562,7 @@ def style_figure_content(
     user_prompt += f"{context_labels[0]}: {raw_content}\n"
     user_prompt += f"{context_labels[1]}: {description}\nYour Output:"
 
-    response_dict = call_gemini_with_contents(
+    response_dict = call_llm_with_contents(
         contents=[
             types.Part.from_text(text=system_prompt),
             types.Part.from_text(text=user_prompt),
@@ -615,7 +615,7 @@ def critique_and_revise_figure(
     user_prompt = f"\nDetailed Description: {figure_desc}\n{context_labels[0]}: {raw_content}\n{context_labels[1]}: {description}\nYour Output:"
     contents.append(types.Part.from_text(text=user_prompt))
 
-    response_dict = call_gemini_with_contents(
+    response_dict = call_llm_with_contents(
         contents=contents,
         model_name=model_name,
         result_parsing_func=identity_parse,
@@ -659,7 +659,7 @@ def generate_figure_visuals(
             types.Part.from_text(text=PLOT_VISUALIZER_AGENT_SYSTEM_PROMPT),
             types.Part.from_text(text=prompt_text),
         ]
-        response_dict = call_gemini_with_contents(
+        response_dict = call_llm_with_contents(
             contents=contents,
             model_name=model_name,
             result_parsing_func=identity_parse,
