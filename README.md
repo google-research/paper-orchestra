@@ -36,6 +36,7 @@ Acting like an orchestrated team of specialized agents, it handles outline gener
     
     SEMANTIC_SCHOLAR_API_KEY=your_semantic_scholar_api_key
     OPENAI_API_KEY=your_openai_api_key
+    ANTHROPIC_API_KEY=your_anthropic_api_key
     VERTEX_AI_PROJECT=your_vertex_ai_project
     VERTEX_AI_LOCATION=your_vertex_ai_location
     GEMINI_API_KEY=your_gemini_api_key
@@ -67,6 +68,18 @@ python paper_writing_cli.py \
   --output_dir /path_to_your_output_folder/ \
   --use_plotting true
 ```
+
+### Using Claude
+Model names starting with `claude-` are routed to Anthropic's Messages API. Set `ANTHROPIC_API_KEY` in your `.env` file, then pass Claude model names:
+```bash
+python paper_writing_cli.py \
+  --raw_materials_dir /path_to_your_raw_materials/ \
+  --latex_template_dir /path_to_your_latex_template/ \
+  --output_dir /path_to_your_output_folder/ \
+  --writer_model_name claude-sonnet-5-5 \
+  --reflection_model_name claude-opus-5-5
+```
+The literature-search step and `--image_model_name` still use Gemini, so a Gemini key is still needed for those.
 
 ### Key Arguments
 *   `--raw_materials_dir`: (Required) Directory containing the raw materials (e.g., idea and experimental log).

@@ -1,3 +1,4 @@
+anthropic
 google-genai
 joblib
 json_repair
