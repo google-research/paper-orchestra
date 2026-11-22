@@ -289,6 +289,23 @@ Provide your response strictly in the following JSON format.
 # ==========================================
 
 
+def detect_image_mime_type(image_bytes: bytes) -> str:
+    """Detects the image MIME type from magic bytes, defaulting to JPEG."""
+    if image_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if image_bytes.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if image_bytes.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if image_bytes.startswith(b"RIFF") and image_bytes[8:12] == b"WEBP":
+        return "image/webp"
+    if image_bytes.startswith(b"BM"):
+        return "image/bmp"
+    if image_bytes.startswith((b"II*\x00", b"MM\x00*")):
+        return "image/tiff"
+    return "image/jpeg"
+
+
 def execute_plot_code_worker(code_text: str) -> str:
     """
     Independent plot code execution worker:
@@ -433,10 +450,11 @@ def generate_figure_caption(
     }
 
     if base64_image and len(base64_image) > 100:
+        image_bytes = base64.b64decode(base64_image)
         contents = [
             types.Part.from_text(text=prompt),
             types.Part.from_bytes(
-                data=base64.b64decode(base64_image), mime_type="image/jpeg"
+                data=image_bytes, mime_type=detect_image_mime_type(image_bytes)
             ),
         ]
         response_dict = call_gemini_with_contents(
@@ -504,9 +522,11 @@ def predict_figure_content(
         if os.path.exists(image_path):
             with open(image_path, "rb") as f:
                 ref_image_base64 = base64.b64encode(f.read()).decode("utf-8")
+                ref_image_bytes = base64.b64decode(ref_image_base64)
                 contents.append(
                     types.Part.from_bytes(
-                        data=base64.b64decode(ref_image_base64), mime_type="image/jpeg"
+                        data=ref_image_bytes,
+                        mime_type=detect_image_mime_type(ref_image_bytes),
                     )
                 )
 
@@ -600,9 +620,10 @@ def critique_and_revise_figure(
     ]
 
     if base64_image and len(base64_image) > 100:
+        image_bytes = base64.b64decode(base64_image)
         contents.append(
             types.Part.from_bytes(
-                data=base64.b64decode(base64_image), mime_type="image/jpeg"
+                data=image_bytes, mime_type=detect_image_mime_type(image_bytes)
             )
         )
     else:
