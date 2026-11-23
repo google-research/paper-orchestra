@@ -104,6 +104,19 @@ def main():
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         base_dir = f"./paper_output_{timestamp}"
 
+    # Copying the materials into an output dir that lives inside them would
+    # make copytree recurse into its own destination.
+    materials_real = os.path.realpath(args.raw_materials_dir)
+    output_real = os.path.realpath(base_dir)
+    if output_real != materials_real and (
+        os.path.commonpath([materials_real, output_real]) == materials_real
+    ):
+        print(
+            f"Error: Output directory '{base_dir}' is inside the raw materials "
+            f"directory '{args.raw_materials_dir}'. Pass an --output_dir outside it."
+        )
+        sys.exit(1)
+
     os.makedirs(base_dir, exist_ok=True)
 
     target_raw_materials = os.path.join(base_dir, "raw_materials")
