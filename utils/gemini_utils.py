@@ -26,6 +26,12 @@ import threading
 
 import dotenv
 
+from utils.openrouter_utils import (
+    is_openrouter_enabled,
+    call_openrouter_with_gemini_contents,
+    generate_image_with_openrouter,
+)
+
 dot_file = os.path.join(os.path.dirname(__file__), "../.env")
 dotenv.load_dotenv(dot_file)
 
@@ -168,6 +174,17 @@ def call_gemini_with_contents(
     Calls the Gemini API (text-only) with retry logic and exponential backoff.
     """
 
+    if is_openrouter_enabled():
+        return call_openrouter_with_gemini_contents(
+            contents=contents,
+            model_name=model_name,
+            result_parsing_func=result_parsing_func,
+            generation_configs=generation_configs,
+            check_parsed_response_not_none=check_parsed_response_not_none,
+            max_retries=max_retries,
+            base_interval_sec=base_interval_sec,
+        )
+
     raw_response = None
     parsed_response = None
 
@@ -291,6 +308,17 @@ def generate_image_with_gemini(
     """
     if generation_configs is None:
         generation_configs = {}
+
+    if is_openrouter_enabled():
+        return generate_image_with_openrouter(
+            model_name=model_name,
+            prompt=prompt,
+            aspect_ratio=aspect_ratio,
+            generation_configs=generation_configs,
+            max_retries=max_retries,
+            base_interval_sec=base_interval_sec,
+            save_path=save_path,
+        )
 
     genai_client = get_genai_client()
     for attempt in range(max_retries):

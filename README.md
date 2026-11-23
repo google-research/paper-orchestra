@@ -45,6 +45,14 @@ Acting like an orchestrated team of specialized agents, it handles outline gener
     SMTP_PASSWORD=your_password
     ```
 
+    **Using OpenRouter instead**: set `OPENROUTER_API_KEY` and every LLM call (text, images, PDFs, web search and diagram image generation) is routed through [OpenRouter](https://openrouter.ai), so no Gemini/Vertex/OpenAI keys are needed:
+    ```env
+    SEMANTIC_SCHOLAR_API_KEY=your_semantic_scholar_api_key
+    OPENROUTER_API_KEY=your_openrouter_api_key
+    # Optional: LLM_PROVIDER=openrouter forces OpenRouter, LLM_PROVIDER=native ignores OPENROUTER_API_KEY
+    ```
+    Bare model names are mapped to OpenRouter slugs automatically (`gemini-*` → `google/gemini-*`, `gpt-*`/`o1`/`o3` → `openai/...`, `claude-*` → `anthropic/...`). You can also pass any OpenRouter slug directly, e.g. `--writer_model_name <provider>/<model>` as listed on openrouter.ai/models. The Gemini Google Search tool used by the literature review agent maps to OpenRouter's `web` plugin.
+
 ## Dataset
 
 The dataset used for paper generation is **not included** in this code repository. It will be released separately at a later date.

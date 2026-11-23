@@ -25,6 +25,8 @@ import base64
 from openai import OpenAI  # type: ignore
 from dotenv import load_dotenv  # type: ignore
 
+from utils.openrouter_utils import is_openrouter_enabled, call_openrouter_with_content
+
 dot_file = os.path.join(os.path.dirname(__file__), "../.env")
 load_dotenv(dot_file)
 
@@ -119,6 +121,18 @@ def call_openai_models_with_content(
     check_parsed_response_not_none: bool = True,
     system_prompt: str = None,
 ):
+    if is_openrouter_enabled():
+        return call_openrouter_with_content(
+            content=content,
+            model_name=model_name,
+            result_parsing_func=result_parsing_func,
+            generation_configs=generation_configs,
+            check_parsed_response_not_none=check_parsed_response_not_none,
+            max_retries=max_retries,
+            base_interval_sec=base_interval_sec,
+            system_prompt=system_prompt,
+        )
+
     raw_response = None
     parsed_response = None
     openai_client = get_openai_client()
