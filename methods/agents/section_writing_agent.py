@@ -39,6 +39,13 @@ from utils.llm_backend_utils import call_llm_with_images
 import json
 from typing import List, Dict
 
+# Extensions pdflatex can include; compared case-insensitively.
+FIGURE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".pdf")
+
+
+def _has_figure_extension(name: str) -> bool:
+    return name.lower().endswith(FIGURE_EXTENSIONS)
+
 
 class SectionWritingAgent:
     def __init__(
@@ -90,12 +97,7 @@ class SectionWritingAgent:
         context = "### AVAILABLE FIGURES LIST\n"
         for idx, fig in enumerate(figures_info, 1):
             name = fig.get("name", f"figure_{idx}.jpg")
-            if (
-                name
-                and not name.endswith(".png")
-                and not name.endswith(".jpg")
-                and not name.endswith(".pdf")
-            ):
+            if name and not _has_figure_extension(name):
                 name += ".png"
             caption = fig.get("caption", "No caption provided.")
 
@@ -149,14 +151,10 @@ class SectionWritingAgent:
                 for fig in figures_info:
                     name = fig.get("name", "")
                     if name:
-                        if (
-                            not name.endswith(".png")
-                            and not name.endswith(".jpg")
-                            and not name.endswith(".pdf")
-                        ):
+                        if not _has_figure_extension(name):
                             name += ".png"
                         img_path = os.path.join(figures_dir, name)
-                        if os.path.exists(img_path) and not name.endswith(
+                        if os.path.exists(img_path) and not name.lower().endswith(
                             ".pdf"
                         ):  # We can only pass raster images, not PDFs, to Vertex Vision
                             image_paths.append(img_path)
