@@ -38,7 +38,7 @@ load_dotenv(dot_file)
 DATASET_DIR = os.path.join(os.path.dirname(__file__), "../datasets")
 
 S2_API_KEY = os.getenv("SEMANTIC_SCHOLAR_API_KEY")
-print(f"Loaded S2 API Key for this project: {S2_API_KEY}")
+print(f"Semantic Scholar API key: {'set' if S2_API_KEY else 'not set'}")
 
 PRIORITY_PROMPT = """You are an expert academic reviewer. Read the following paper text and analyze its references.
 Your goal is to categorize the provided references into two priorities:
