@@ -24,6 +24,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
 from dotenv import load_dotenv
+import html
 import subprocess
 import shutil
 import tempfile
@@ -204,7 +205,7 @@ def render_gallery_tab():
     else:
         for index, figure in enumerate(st.session_state.figures):
             st.markdown(
-                f'<div class="gallery-item" style="margin-bottom: 1rem;"><p style="font-weight: bold;">{figure["name"]}</p></div>',
+                f'<div class="gallery-item" style="margin-bottom: 1rem;"><p style="font-weight: bold;">{html.escape(figure["name"])}</p></div>',
                 unsafe_allow_html=True,
             )
             st.image(figure["file"], width="stretch")
@@ -403,7 +404,9 @@ def handle_live_execution(
                         file_object.write(log_content)
 
                     for figure in figures_list:
-                        figure_path = os.path.join(figures_directory, figure["name"])
+                        figure_path = os.path.join(
+                            figures_directory, os.path.basename(figure["name"])
+                        )
                         if isinstance(figure["file"], str):
                             shutil.copy(figure["file"], figure_path)
                         else:
@@ -683,7 +686,7 @@ if not st.session_state.get("hide_inputs"):
                     st.session_state.figures.append(
                         {
                             "file": figure_file,
-                            "name": figure_file.name,
+                            "name": os.path.basename(figure_file.name),
                             "caption": figure_caption,
                         }
                     )
