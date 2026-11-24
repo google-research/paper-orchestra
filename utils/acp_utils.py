@@ -86,6 +86,8 @@ def configure_acp(
     enable_terminal: Optional[bool] = None,
     verbose: Optional[bool] = None,
     workspace_root: Optional[str] = None,
+    reuse_sessions: Optional[bool] = None,
+    serial: Optional[bool] = None,
 ) -> None:
     """Set process-wide defaults for ACP calls (from CLI flags)."""
     if acp_command is not None:
@@ -98,6 +100,10 @@ def configure_acp(
         _ACP_CONFIG["enable_terminal"] = enable_terminal
     if verbose is not None:
         _ACP_CONFIG["verbose"] = verbose
+    if reuse_sessions is not None:
+        _ACP_CONFIG["reuse_sessions"] = reuse_sessions
+    if serial is not None:
+        _ACP_CONFIG["serial"] = serial
     if workspace_root is not None:
         set_acp_workspace(workspace_root)
 
@@ -106,6 +112,28 @@ def set_acp_workspace(root: str) -> None:
     """Confine agent file writes and terminal cwd to this directory."""
     global _workspace_root
     _workspace_root = os.path.realpath(root)
+    _prune_blobs(_workspace_root)
+
+
+_BLOB_MAX_AGE_SEC = 24 * 3600
+
+
+def _prune_blobs(workspace: str) -> None:
+    """Drop .acp_blobs files left over from previous runs."""
+    blob_dir = os.path.join(workspace, ".acp_blobs")
+    if not os.path.isdir(blob_dir):
+        return
+    now = time.time()
+    for name in os.listdir(blob_dir):
+        path = os.path.join(blob_dir, name)
+        try:
+            if (
+                os.path.isfile(path)
+                and now - os.path.getmtime(path) > _BLOB_MAX_AGE_SEC
+            ):
+                os.remove(path)
+        except OSError:
+            pass
 
 
 def _get_workspace_root() -> str:
@@ -246,6 +274,9 @@ def _make_client_class():
                 and getattr(o, "option_id", "") not in _SKIPPED_OPTION_IDS
             ]
 
+            if self._permission_mode == "ask":
+                return await self._ask_permission(tool_call, options)
+
             grant = False
             if self._permission_mode == "auto":
                 grant = True
@@ -261,6 +292,36 @@ def _make_client_class():
                 return schema.RequestPermissionResponse(
                     outcome=schema.AllowedOutcome(
                         outcome="selected", option_id=candidates[0].option_id
+                    )
+                )
+            return schema.RequestPermissionResponse(
+                outcome=schema.DeniedOutcome(outcome="cancelled")
+            )
+
+        async def _ask_permission(self, tool_call, options):
+            title = getattr(tool_call, "title", "") or "tool call"
+            kind = getattr(tool_call, "kind", None) or "other"
+            print(f"\n[acp] Permission requested: {title} ({kind})", flush=True)
+            for i, option in enumerate(options):
+                name = getattr(option, "name", None) or getattr(
+                    option, "option_id", ""
+                )
+                print(f"  [{i}] {name} ({getattr(option, 'kind', '')})", flush=True)
+            print("  [c] cancel", flush=True)
+
+            def _read_choice():
+                try:
+                    return input("Allow? [c]: ").strip().lower()
+                except EOFError:
+                    return "c"
+
+            loop = asyncio.get_running_loop()
+            answer = await loop.run_in_executor(None, _read_choice)
+            if answer.isdigit() and int(answer) < len(options):
+                return schema.RequestPermissionResponse(
+                    outcome=schema.AllowedOutcome(
+                        outcome="selected",
+                        option_id=options[int(answer)].option_id,
                     )
                 )
             return schema.RequestPermissionResponse(
@@ -314,9 +375,16 @@ def _make_client_class():
                     output_byte_limit or MAX_TERMINAL_OUTPUT_BYTES,
                     MAX_TERMINAL_OUTPUT_BYTES,
                 )
+                # Agents send full shell command strings (e.g. with pipes and
+                # redirects), so run them through the platform shell.
+                if args:
+                    command = shlex.join([command, *args])
+                if os.name == "nt":
+                    argv = ["cmd", "/c", command]
+                else:
+                    argv = ["/bin/sh", "-c", command]
                 proc = await asyncio.create_subprocess_exec(
-                    command,
-                    *(args or []),
+                    *argv,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.STDOUT,
                     cwd=resolved_cwd,
@@ -388,12 +456,23 @@ class _AcpRuntime:
     _instances: Dict[tuple, "_AcpRuntime"] = {}
     _instances_lock = threading.Lock()
 
-    def __init__(self, argv, workspace_root, permission_mode, enable_terminal, verbose):
+    def __init__(
+        self,
+        argv,
+        workspace_root,
+        permission_mode,
+        enable_terminal,
+        verbose,
+        serial=False,
+        reuse_sessions=False,
+    ):
         self._argv = argv
         self._workspace_root = workspace_root
         self._permission_mode = permission_mode
         self._enable_terminal = enable_terminal
         self._verbose = verbose
+        self._serial = serial
+        self._reuse_sessions = reuse_sessions
         self._loop = None
         self._conn = None
         self._proc = None
@@ -401,21 +480,42 @@ class _AcpRuntime:
         self._client = None
         self._thread = None
         self._call_lock = threading.Lock()
+        self._session_pool: List[str] = []
+        self._session_pool_lock = None
         self._started = threading.Event()
         self._start_error: Optional[BaseException] = None
 
     @classmethod
-    def for_command(cls, argv, workspace_root, permission_mode, enable_terminal, verbose):
+    def for_command(
+        cls,
+        argv,
+        workspace_root,
+        permission_mode,
+        enable_terminal,
+        verbose,
+        serial=False,
+        reuse_sessions=False,
+    ):
         key = (
             tuple(argv),
             os.path.realpath(workspace_root),
             permission_mode,
             enable_terminal,
+            serial,
+            reuse_sessions,
         )
         with cls._instances_lock:
             rt = cls._instances.get(key)
             if rt is None or not rt.is_alive():
-                rt = cls(argv, workspace_root, permission_mode, enable_terminal, verbose)
+                rt = cls(
+                    argv,
+                    workspace_root,
+                    permission_mode,
+                    enable_terminal,
+                    verbose,
+                    serial=serial,
+                    reuse_sessions=reuse_sessions,
+                )
                 rt.start()
                 cls._instances[key] = rt
             return rt
@@ -463,6 +563,7 @@ class _AcpRuntime:
             self._verbose,
         )
         self._ctx = spawn_agent_process(self._client, *self._argv)
+        self._session_pool_lock = asyncio.Lock()
         self._conn, self._proc = await self._ctx.__aenter__()
         await self._conn.initialize(
             protocol_version=acp_protocol_version(),
@@ -478,25 +579,48 @@ class _AcpRuntime:
         )
 
     def call(self, blocks, cwd) -> str:
-        with self._call_lock:
-            future = asyncio.run_coroutine_threadsafe(
-                self._prompt(blocks, cwd), self._loop
-            )
-            return future.result()
+        if self._serial:
+            with self._call_lock:
+                return self._call_async(blocks, cwd)
+        return self._call_async(blocks, cwd)
+
+    def _call_async(self, blocks, cwd) -> str:
+        future = asyncio.run_coroutine_threadsafe(
+            self._prompt(blocks, cwd), self._loop
+        )
+        return future.result()
+
+    async def _checkout_session(self, cwd) -> str:
+        async with self._session_pool_lock:
+            if self._session_pool:
+                return self._session_pool.pop()
+        session = await self._conn.new_session(cwd=cwd, mcp_servers=[])
+        return session.session_id
+
+    async def _checkin_session(self, session_id: str) -> None:
+        async with self._session_pool_lock:
+            self._session_pool.append(session_id)
 
     async def _prompt(self, blocks, cwd) -> str:
-        session = await self._conn.new_session(cwd=cwd, mcp_servers=[])
-        session_id = session.session_id
+        pooled = self._reuse_sessions
+        if pooled:
+            session_id = await self._checkout_session(cwd)
+        else:
+            session = await self._conn.new_session(cwd=cwd, mcp_servers=[])
+            session_id = session.session_id
         self._client.begin_turn(session_id)
         try:
             await self._conn.prompt(session_id=session_id, prompt=blocks)
             return self._client.end_turn(session_id)
         finally:
             self._client.end_turn(session_id)
-            try:
-                await self._conn.close_session(session_id=session_id)
-            except Exception:
-                pass
+            if pooled:
+                await self._checkin_session(session_id)
+            else:
+                try:
+                    await self._conn.close_session(session_id=session_id)
+                except Exception:
+                    pass
 
     def shutdown(self) -> None:
         proc = self._proc
@@ -613,6 +737,8 @@ def call_acp_agent(
     check_parsed_response_not_none: bool = True,
     max_retries: int = 5,
     base_interval_sec: int = 5,
+    serial: bool = False,
+    reuse_sessions: bool = False,
 ) -> Dict[str, Any]:
     """Send a prompt to an ACP agent; mirrors the gemini_utils call contract."""
     schema, _, _, _ = _acp_imports()
@@ -629,6 +755,8 @@ def call_acp_agent(
     )
     enable_terminal = _ACP_CONFIG.get("enable_terminal", enable_terminal)
     verbose = _ACP_CONFIG.get("verbose", verbose)
+    serial = _ACP_CONFIG.get("serial", serial)
+    reuse_sessions = _ACP_CONFIG.get("reuse_sessions", reuse_sessions)
     parser = result_parsing_func or (lambda r: r)
 
     if contents_are_acp_blocks:
@@ -641,7 +769,13 @@ def call_acp_agent(
     for attempt in range(max_retries):
         try:
             runtime = _AcpRuntime.for_command(
-                argv, workspace, permission_mode, enable_terminal, verbose
+                argv,
+                workspace,
+                permission_mode,
+                enable_terminal,
+                verbose,
+                serial=serial,
+                reuse_sessions=reuse_sessions,
             )
             raw_response = runtime.call(blocks, workspace)
             parsed_response = parser(raw_response)
@@ -792,7 +926,12 @@ def generate_diagram_with_acp(
                     f"ACP agent did not create the diagram file: {output_path}"
                 )
             with open(output_path, "rb") as f:
-                return _base64.b64encode(f.read()).decode("utf-8")
+                encoded = _base64.b64encode(f.read()).decode("utf-8")
+            try:
+                os.remove(output_path)
+            except OSError:
+                pass
+            return encoded
         except Exception as e:
             print(
                 f"Warning: ACP diagram generation failed on attempt "

@@ -99,9 +99,10 @@ def main():
     parser.add_argument(
         "--acp_permission_mode",
         default="auto",
-        choices=["auto", "read_only", "deny"],
+        choices=["auto", "read_only", "deny", "ask"],
         help="How ACP permission requests are answered. 'auto' approves all, "
-        "'read_only' approves reads only, 'deny' rejects everything. Default: auto.",
+        "'read_only' approves reads only, 'deny' rejects everything, "
+        "'ask' prompts interactively. Default: auto.",
     )
     parser.add_argument(
         "--acp_no_terminal",
@@ -112,6 +113,18 @@ def main():
         "--acp_verbose",
         action="store_true",
         help="Log ACP agent tool calls and thoughts.",
+    )
+    parser.add_argument(
+        "--acp_reuse_sessions",
+        action="store_true",
+        help="Reuse ACP sessions across calls so the agent keeps context "
+        "between turns (default: fresh session per call).",
+    )
+    parser.add_argument(
+        "--acp_serial",
+        action="store_true",
+        help="Serialize ACP calls through a single turn at a time (use if the "
+        "agent does not support concurrent sessions).",
     )
 
     args = parser.parse_args()
@@ -134,6 +147,8 @@ def main():
             permission_mode=args.acp_permission_mode,
             enable_terminal=not args.acp_no_terminal,
             verbose=args.acp_verbose,
+            reuse_sessions=args.acp_reuse_sessions,
+            serial=args.acp_serial,
         )
 
     if args.research_cutoff is None:

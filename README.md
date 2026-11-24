@@ -100,11 +100,15 @@ Model spec resolution:
 
 Additional flags:
 
-* `--acp_permission_mode {auto,read_only,deny}` — how the agent's permission
-  requests are answered (default: `auto`).
+* `--acp_permission_mode {auto,read_only,deny,ask}` — how the agent's permission
+  requests are answered (default: `auto`); `ask` prompts interactively.
 * `--acp_no_terminal` — disable the terminal capability so the agent cannot run
   shell commands.
 * `--acp_verbose` — log the agent's tool calls and thoughts.
+* `--acp_reuse_sessions` — keep sessions open between calls so the agent
+  retains context across turns (default: fresh session per call).
+* `--acp_serial` — serialize ACP calls for agents that cannot handle
+  concurrent sessions.
 
 File writes and terminal working directories are confined to the output folder.
 Note that an ACP turn is a full agent loop, so ACP-backed stages are slower than
