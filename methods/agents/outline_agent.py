@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from utils.common_utils import load_md_file
-from utils.gemini_utils import call_gemini_with_contents
+from utils.llm_backend_utils import call_llm_with_contents
 import json
 from google.genai import types  # type: ignore
 
@@ -48,7 +48,7 @@ class OutlineAgent:
             ),
             types.Part.from_text(text=load_md_file(conference_guidelines_file)),
         ]
-        response_dict = call_gemini_with_contents(
+        response_dict = call_llm_with_contents(
             contents=contents,
             model_name=self.model_name,
         )

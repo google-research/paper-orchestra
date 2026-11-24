@@ -86,8 +86,70 @@ def main():
         default=3,
         help="Maximum rounds of self-correction in the plotting agent.",
     )
+    parser.add_argument(
+        "--acp_command",
+        default=None,
+        help="Override the ACP agent command for acp: model names (e.g. 'devin acp').",
+    )
+    parser.add_argument(
+        "--acp_args",
+        default=None,
+        help="Extra arguments appended to the ACP agent command (e.g. '--model opus').",
+    )
+    parser.add_argument(
+        "--acp_permission_mode",
+        default="auto",
+        choices=["auto", "read_only", "deny", "ask"],
+        help="How ACP permission requests are answered. 'auto' approves all, "
+        "'read_only' approves reads only, 'deny' rejects everything, "
+        "'ask' prompts interactively. Default: auto.",
+    )
+    parser.add_argument(
+        "--acp_no_terminal",
+        action="store_true",
+        help="Disable the ACP terminal capability (agent cannot run shell commands).",
+    )
+    parser.add_argument(
+        "--acp_verbose",
+        action="store_true",
+        help="Log ACP agent tool calls and thoughts.",
+    )
+    parser.add_argument(
+        "--acp_reuse_sessions",
+        action="store_true",
+        help="Reuse ACP sessions across calls so the agent keeps context "
+        "between turns (default: fresh session per call).",
+    )
+    parser.add_argument(
+        "--acp_serial",
+        action="store_true",
+        help="Serialize ACP calls through a single turn at a time (use if the "
+        "agent does not support concurrent sessions).",
+    )
 
     args = parser.parse_args()
+
+    _acp_enabled = any(
+        str(m).lower().startswith("acp:")
+        for m in [
+            args.writer_model_name,
+            args.reflection_model_name,
+            args.plotting_model_name,
+            args.image_model_name,
+        ]
+    )
+    if _acp_enabled:
+        from utils.acp_utils import configure_acp
+
+        configure_acp(
+            acp_command=args.acp_command,
+            acp_args=args.acp_args,
+            permission_mode=args.acp_permission_mode,
+            enable_terminal=not args.acp_no_terminal,
+            verbose=args.acp_verbose,
+            reuse_sessions=args.acp_reuse_sessions,
+            serial=args.acp_serial,
+        )
 
     if args.research_cutoff is None:
         args.research_cutoff = datetime.now().strftime("%Y-%m")
@@ -105,6 +167,11 @@ def main():
         base_dir = f"./paper_output_{timestamp}"
 
     os.makedirs(base_dir, exist_ok=True)
+
+    if _acp_enabled:
+        from utils.acp_utils import set_acp_workspace
+
+        set_acp_workspace(base_dir)
 
     target_raw_materials = os.path.join(base_dir, "raw_materials")
     if os.path.abspath(target_raw_materials) != os.path.abspath(args.raw_materials_dir):

@@ -76,6 +76,52 @@ python paper_writing_cli.py \
 *   `--writer_model_name`: LLM for writer and literature agents.
 *   `--reflection_model_name`: LLM for reflection agents.
 
+### ACP agents (experimental)
+
+Any `*_model_name` argument also accepts an `acp:`-prefixed model name, which routes
+that stage to an [Agent Client Protocol](https://agentclientprotocol.com/) agent
+running as a local subprocess instead of a direct LLM API call. This is most useful
+for agentic stages (e.g. plotting and LaTeX fixes), where the agent can run code in
+the output directory itself.
+
+```bash
+python paper_writing_cli.py \
+  --raw_materials_dir /path_to_your_raw_materials/ \
+  --latex_template_dir /path_to_your_latex_template/ \
+  --writer_model_name acp:devin
+```
+
+Model spec resolution:
+
+* `acp:devin` — runs `devin acp` (requires `devin auth login` first).
+* `acp:gemini` — runs `gemini --experimental-acp`.
+* `acp:cmd:<command>` — any command, e.g. `acp:cmd:devin acp --model opus`.
+* `--acp_command "<command>"` / `--acp_args "<args>"` — override globally.
+
+Additional flags:
+
+* `--acp_permission_mode {auto,read_only,deny,ask}` — how the agent's permission
+  requests are answered (default: `auto`); `ask` prompts interactively.
+* `--acp_no_terminal` — disable the terminal capability so the agent cannot run
+  shell commands.
+* `--acp_verbose` — log the agent's tool calls and thoughts.
+* `--acp_reuse_sessions` — keep sessions open between calls so the agent
+  retains context across turns (default: fresh session per call).
+* `--acp_serial` — serialize ACP calls for agents that cannot handle
+  concurrent sessions.
+
+File writes and terminal working directories are confined to the output folder.
+Note that an ACP turn is a full agent loop, so ACP-backed stages are slower than
+direct API calls.
+
+Two behaviors adapt when `acp:` models are selected:
+
+* `--image_model_name acp:devin` has no image-generation API, so the agent
+  renders diagrams to disk with its own tools (e.g. matplotlib) instead.
+* The literature-review discovery calls normally use Gemini's Google Search
+  grounding; with an `acp:` writer model the agent performs the web search
+  itself, so no Gemini credentials are needed.
+
 ### Interactive Demo
 
 We provide an interactive Streamlit demo for the paper generation pipeline. For instructions on how to run and use it, please refer to the [README.md](frontend/README.md) in the `frontend` directory.

@@ -25,7 +25,9 @@ from google.genai import types  # type: ignore
 from methods.prompts.literature_review_agent import (
     literature_review_agent_writter_prompt,
 )
-from utils.gemini_utils import call_gemini_with_contents, parse_gemini_latex_results
+from utils.gemini_utils import parse_gemini_latex_results
+from utils.acp_utils import is_acp_model
+from utils.llm_backend_utils import call_llm_with_contents
 from utils.scholar_utils import s2_title_search
 
 
@@ -70,12 +72,19 @@ class HybridLiteratureAgent:
         conference_guidelines_path: str,
         output_dir: str,
         model_name: str = "gemini-3.1-pro-preview",
+        search_model_name: Optional[str] = None,
         max_workers: int = 5,
     ):
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
 
         self.model_name = model_name
+        if search_model_name is not None:
+            self.search_model_name = search_model_name
+        elif is_acp_model(model_name):
+            self.search_model_name = model_name
+        else:
+            self.search_model_name = "gemini-3-flash-preview"
         self.max_workers = max_workers
         self.context_paths = {
             "idea.md": idea_path,
@@ -461,13 +470,18 @@ class HybridLiteratureAgent:
             {DiscoveryResult.model_json_schema()}
             """
 
-        response_dict = call_gemini_with_contents(
-            model_name="gemini-3-flash-preview",
+        discovery_generation_configs = {
+            "temperature": 0.1 if task.get("search_type") == "targeted" else 0.4,
+        }
+        # Google Search grounding is a Gemini-only tool; ACP agents search the
+        # web with their own tools instead.
+        if not is_acp_model(self.search_model_name):
+            discovery_generation_configs["tools"] = [self.google_search_tool]
+
+        response_dict = call_llm_with_contents(
+            model_name=self.search_model_name,
             contents=[prompt],
-            generation_configs={
-                "tools": [self.google_search_tool],
-                "temperature": 0.1 if task.get("search_type") == "targeted" else 0.4,
-            },
+            generation_configs=discovery_generation_configs,
         )
 
         if response_dict["parsed_response"]:
@@ -496,7 +510,7 @@ class HybridLiteratureAgent:
         )
 
         user_prompt = "Generate the LaTeX for Introduction and Related Work sections."
-        response_dict = call_gemini_with_contents(
+        response_dict = call_llm_with_contents(
             model_name=self.model_name,
             contents=[user_prompt, json.dumps(context_payload)],
             generation_configs={"system_instruction": writer_system_prompt},
