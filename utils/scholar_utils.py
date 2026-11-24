@@ -25,7 +25,7 @@ from dotenv import load_dotenv  # type: ignore
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 load_dotenv(os.path.join(cur_dir, "../.env"))
 S2_API_KEY = os.environ.get("SEMANTIC_SCHOLAR_API_KEY")
-print(f"Using S2 API Key: {S2_API_KEY}")
+print(f"Semantic Scholar API key: {'set' if S2_API_KEY else 'not set'}")
 
 
 # --- SEMANTIC SCHOLAR UTILS ---
