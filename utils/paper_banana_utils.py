@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ast
 import base64
-import io
 import re
 import os
 import json
-import matplotlib.pyplot as plt
+import subprocess
+import sys
+import tempfile
 import json_repair
 from typing import Dict, Any, List, Tuple
 from google.genai import types
@@ -289,37 +291,111 @@ Provide your response strictly in the following JSON format.
 # ==========================================
 
 
-def execute_plot_code_worker(code_text: str) -> str:
+# Modules / builtins that LLM-written plotting code has no legitimate reason to use.
+# This list is defense in depth only (it is bypassable); the real protection is that
+# the code runs in a separate process with a scrubbed environment and a timeout.
+_BLOCKED_IMPORTS = {
+    "os", "sys", "subprocess", "socket", "shutil", "ctypes", "importlib",
+    "requests", "urllib", "http", "ftplib", "smtplib", "pickle", "marshal",
+    "builtins", "multiprocessing", "threading", "signal", "pty", "webbrowser",
+}
+_BLOCKED_CALLS = {"eval", "exec", "compile", "open", "__import__", "input", "breakpoint"}
+
+_PLOT_RUNNER = """
+import sys
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+with open(sys.argv[1], encoding="utf-8") as f:
+    source = f.read()
+exec(compile(source, "<plot>", "exec"), {"__name__": "__plot__"})
+if not plt.get_fignums():
+    sys.exit(3)
+plt.savefig(sys.argv[2], format="jpeg", bbox_inches="tight", dpi=300)
+"""
+
+
+def _plot_code_is_allowed(code: str) -> bool:
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            if any(a.name.split(".")[0] in _BLOCKED_IMPORTS for a in node.names):
+                return False
+        elif isinstance(node, ast.ImportFrom):
+            if (node.module or "").split(".")[0] in _BLOCKED_IMPORTS:
+                return False
+        elif isinstance(node, ast.Call):
+            fn = node.func
+            if isinstance(fn, ast.Name) and fn.id in _BLOCKED_CALLS:
+                return False
+        elif isinstance(node, ast.Attribute) and node.attr.startswith("__"):
+            return False
+    return True
+
+
+def _limit_resources():  # POSIX only; runs in the child before exec
+    import resource
+
+    resource.setrlimit(resource.RLIMIT_CPU, (60, 60))
+    resource.setrlimit(resource.RLIMIT_AS, (2 * 1024**3, 2 * 1024**3))
+    resource.setrlimit(resource.RLIMIT_FSIZE, (50 * 1024**2, 50 * 1024**2))
+
+
+def execute_plot_code_worker(code_text: str, timeout: int = 60) -> str:
     """
     Independent plot code execution worker:
     1. Extract code
-    2. Execute plotting
+    2. Execute it in an isolated subprocess (never in this process)
     3. Return JPEG as Base64 string
     """
     match = re.search(r"```python(.*?)```", code_text, re.DOTALL)
     code_clean = match.group(1).strip() if match else code_text.strip()
 
-    plt.switch_backend("Agg")
-    plt.close("all")
-    plt.rcdefaults()
+    if not _plot_code_is_allowed(code_clean):
+        print("Refusing to run plot code: it uses a blocked import or builtin.")
+        return None
 
-    try:
-        exec_globals = {}
-        exec(code_clean, exec_globals)
-        if plt.get_fignums():
-            buf = io.BytesIO()
-            plt.savefig(buf, format="jpeg", bbox_inches="tight", dpi=300)
-            plt.close("all")
+    with tempfile.TemporaryDirectory(prefix="plot_") as tmp:
+        code_path = os.path.join(tmp, "plot_code.py")
+        runner_path = os.path.join(tmp, "runner.py")
+        out_path = os.path.join(tmp, "out.jpg")
+        with open(code_path, "w", encoding="utf-8") as f:
+            f.write(code_clean)
+        with open(runner_path, "w", encoding="utf-8") as f:
+            f.write(_PLOT_RUNNER)
 
-            buf.seek(0)
-            img_bytes = buf.read()
-            return base64.b64encode(img_bytes).decode("utf-8")
-        else:
+        # Do not leak API keys (GEMINI/OPENAI/S2/SMTP...) into model-written code.
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k in ("PATH", "SYSTEMROOT", "TEMP", "TMP", "LANG", "LC_ALL")
+        }
+        env.update({"MPLBACKEND": "Agg", "MPLCONFIGDIR": tmp, "HOME": tmp})
+
+        try:
+            result = subprocess.run(
+                [sys.executable, "-I", runner_path, code_path, out_path],
+                cwd=tmp,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                preexec_fn=_limit_resources if os.name == "posix" else None,
+            )
+        except subprocess.TimeoutExpired:
+            print(f"Error executing plot code: timed out after {timeout}s")
             return None
 
-    except Exception as e:
-        print(f"Error executing plot code: {e}")
-        return None
+        if result.returncode != 0 or not os.path.exists(out_path):
+            if result.returncode != 3:
+                print(f"Error executing plot code: {result.stderr.strip()[-500:]}")
+            return None
+        with open(out_path, "rb") as f:
+            return base64.b64encode(f.read()).decode("utf-8")
 
 
 def identity_parse(response: str):
