@@ -80,6 +80,10 @@ python paper_writing_cli.py \
 
 We provide an interactive Streamlit demo for the paper generation pipeline. For instructions on how to run and use it, please refer to the [README.md](frontend/README.md) in the `frontend` directory.
 
+### Codex desktop companion
+
+A community-maintained [PaperOrchestra for Codex](https://github.com/Harmain11/paper-orchestra-codex) plugin provides evidence-audit and research-preparation skills for Codex desktop users working with PaperOrchestra materials. It is a separate project and is not maintained or endorsed by the PaperOrchestra authors. It does not change or replace this repository's Python pipeline or its model-provider configuration.
+
 ## Project Structure
 
 *   `autoraters/`: Contains scripts for automated evaluation.
