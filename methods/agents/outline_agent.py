@@ -17,15 +17,19 @@ from utils.gemini_utils import call_gemini_with_contents
 import json
 from google.genai import types  # type: ignore
 
-from methods.prompts.outline_agent import outline_agent_system_prompt
+from methods.prompts.domains import get_prompts
 
 
 class OutlineAgent:
     def __init__(
-        self, model_name: str = "gemini-3.1-pro-preview", cutoff_date: str = "2024-10"
+        self,
+        model_name: str = "gemini-3.1-pro-preview",
+        cutoff_date: str = "2024-10",
+        domain: str = "ai",
     ):
         self.model_name = model_name
         self.cutoff_date = cutoff_date
+        self.system_prompt = get_prompts(domain)["outline"]
 
     def run(
         self,
@@ -37,7 +41,7 @@ class OutlineAgent:
     ):
         contents = [
             types.Part.from_text(
-                text=outline_agent_system_prompt.format(cutoff_date=self.cutoff_date)
+                text=self.system_prompt.format(cutoff_date=self.cutoff_date)
             ),
             types.Part.from_text(text="'idea.md':\n" + load_md_file(idea_file)),
             types.Part.from_text(

@@ -27,9 +27,7 @@ from utils.gemini_utils import (
 
 from autoraters.agent_review import perform_review_agentreview
 
-from methods.prompts.content_refinement_agent import (
-    content_refinement_agent_system_prompt,
-)
+from methods.prompts.domains import get_prompts
 
 
 class ContentRefinementAgent:
@@ -41,6 +39,7 @@ class ContentRefinementAgent:
         model_name: str = "gemini-3.1-pro-preview",
         max_reflections: int = 3,
         work_dir: str = "./paper_workspace",
+        domain: str = "ai",
     ):
         """
         Agent responsible for refining a paper by dynamically generating reviews
@@ -48,7 +47,8 @@ class ContentRefinementAgent:
         """
         self.model_name = model_name
         self.max_reflections = max_reflections
-        self.system_prompt = content_refinement_agent_system_prompt
+        self.prompts = get_prompts(domain)
+        self.system_prompt = self.prompts["content_refinement"]
         self.work_dir = work_dir
 
         os.makedirs(self.work_dir, exist_ok=True)
@@ -90,6 +90,8 @@ class ContentRefinementAgent:
             review = perform_review_agentreview(
                 text=paper_text,
                 model_name=self.model_name,
+                reviewer_system_prompt=self.prompts["reviewer_system"],
+                meta_reviewer_prompt=self.prompts["meta_reviewer_system"],
             )
 
             score = review.get("Overall", 0)

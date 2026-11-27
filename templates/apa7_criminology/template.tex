@@ -1,0 +1,116 @@
+% APA 7th edition manuscript template for criminology / criminal justice journals.
+% Uses the apa7 document class with biblatex-apa (compiled with pdflatex + biber).
+%   man            = double-spaced manuscript format required for journal submission
+%   mask           = hides author names for double-blind (anonymous) peer review
+%   floatsintext   = tables and figures appear in the text, near where they are cited
+%                    (remove this option if your journal wants them at the end)
+\documentclass[man,12pt,mask,floatsintext]{apa7}
+
+\usepackage[american]{babel}
+\usepackage{csquotes}
+\usepackage[style=apa,sortcites=true,sorting=nyt,backend=biber]{biblatex}
+\addbibresource{references.bib}
+
+\usepackage{mathptmx} % Times-style font (APA 7 accepts 12-pt Times New Roman)
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{hyperref}
+
+%%%%%%%%% TITLE - PLEASE UPDATE TITLE HERE
+\title{Manuscript Title}
+\shorttitle{Short Title}
+
+% Masked for review (the mask option hides these lines in the PDF).
+\authorsnames{Anonymous Author}
+\authorsaffiliations{Masked for Peer Review}
+\authornote{Author information masked for peer review.}
+
+%%%%%%%%% ABSTRACT %%%%%%%%%
+\abstract{Abstract here.}
+%%%%%%%%% ABSTRACT %%%%%%%%%
+
+\keywords{keyword one, keyword two, keyword three}
+
+\begin{document}
+
+\maketitle
+
+%%%%%%%%% INTRODUCTION %%%%%%%%%
+% APA 7: the Introduction has no heading (the title is repeated above it automatically).
+Introduction here.
+%%%%%%%%% INTRODUCTION %%%%%%%%%
+
+\section{Literature Review}
+\label{sec:literature_review}
+%%%%%%%%% LITERATURE REVIEW (RELATED WORK) %%%%%%%%%
+% Theory, prior empirical research, and a final subsection "The Current Study"
+% that states the research questions / hypotheses.
+Literature review here.
+%%%%%%%%% LITERATURE REVIEW (RELATED WORK) %%%%%%%%%
+
+\section{Data and Methods}
+\label{sec:method}
+%%%%%%%%% DATA AND METHODS %%%%%%%%%
+% Data; Sample; Measures (Dependent, Independent, Control Variables); Analytic Strategy.
+Data and methods here.
+%%%%%%%%% DATA AND METHODS %%%%%%%%%
+
+\section{Results}
+\label{sec:results}
+%%%%%%%%% RESULTS %%%%%%%%%
+Results here.
+%%%%%%%%% RESULTS %%%%%%%%%
+
+\section{Discussion}
+\label{sec:discussion}
+%%%%%%%%% DISCUSSION %%%%%%%%%
+% Key findings, theoretical implications, policy implications,
+% and a "Limitations and Future Research" subsection.
+Discussion here.
+%%%%%%%%% DISCUSSION %%%%%%%%%
+
+\section{Conclusion}
+\label{sec:conclusion}
+%%%%%%%%% CONCLUSION %%%%%%%%%
+Conclusion here.
+%%%%%%%%% CONCLUSION %%%%%%%%%
+
+%%%%%%%%% REFERENCES %%%%%%%%%
+\printbibliography
+%%%%%%%%% REFERENCES %%%%%%%%%
+
+%%%%%%%%% Appendix %%%%%%%%%
+% If you want to add an appendix, uncomment the following lines:
+% \appendix
+% \section{Additional Tables}
+%%%%%%%%% Appendix %%%%%%%%%
+
+% ---------------------------------------------------------------------------
+% APA TABLE PATTERN (copy this structure):
+% \begin{table}[htbp]
+%   \caption{Descriptive Statistics for Study Variables}
+%   \label{tab:descriptives}
+%   \begin{threeparttable}
+%   \begin{tabular}{@{}lrrrr@{}}
+%     \toprule
+%     Variable & \textit{M} / \% & \textit{SD} & Min & Max \\
+%     \midrule
+%     Rearrested within 3 years (1 = yes) & 41.2\% & -- & 0 & 1 \\
+%     Age at release & 34.6 & 10.1 & 18 & 72 \\
+%     \bottomrule
+%   \end{tabular}
+%   \tablenote{\textit{N} = 2,418. Values are means unless shown as percentages.}
+%   \end{threeparttable}
+% \end{table}
+%
+% APA FIGURE PATTERN:
+% \begin{figure}[htbp]
+%   \caption{Predicted Probability of Rearrest by Group}
+%   \label{fig:predicted}
+%   \includegraphics[width=\linewidth]{figures/fig_predicted_probability.png}
+%   \figurenote{Shaded areas are 95\% confidence intervals.}
+% \end{figure}
+% ---------------------------------------------------------------------------
+
+\end{document}

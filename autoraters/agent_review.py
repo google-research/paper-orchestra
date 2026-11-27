@@ -116,6 +116,7 @@ def perform_review_agentreview(
     temperature=0.75,
     reviewer_system_prompt=None,
     review_instruction_form=AGENTREVIEW_INSTRUCTIONS,
+    meta_reviewer_prompt=None,
 ):
     print(f"Start paper reviewing using model: `{model_name}`")
     # Generate the "Best Case" AgentReview persona
@@ -143,7 +144,9 @@ Here is the paper you are asked to review:
                 },
             )
             parsed_reviews.append(response["parsed_response"])
-        review = get_meta_review(model_name, temperature, parsed_reviews)
+        review = get_meta_review(
+            model_name, temperature, parsed_reviews, meta_reviewer_prompt
+        )
         if review is None:
             review = parsed_reviews[0]
         for score, limits in [
@@ -187,7 +190,9 @@ Your job is to aggregate the reviews into a single meta-review in the same forma
 You are an inclusive area chair. You tend to hear from all reviewers' opinions and combine them with your own judgments to make the final decision."""
 
 
-def get_meta_review(model, temperature, reviews):
+def get_meta_review(model, temperature, reviews, system_prompt=None):
+    if system_prompt is None:
+        system_prompt = meta_reviewer_system_prompt
     review_text = ""
     for i, r in enumerate(reviews):
         review_text += f"""
@@ -202,7 +207,7 @@ Review {i + 1}/{len(reviews)}:
         model_name=model,
         generation_configs={
             "temperature": temperature,
-            "system_instruction": meta_reviewer_system_prompt.format(
+            "system_instruction": system_prompt.format(
                 reviewer_count=len(reviews)
             ),
         },
