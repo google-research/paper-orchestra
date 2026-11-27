@@ -177,9 +177,19 @@ def compile_latex(cwd, pdf_file, texfile_name="template", timeout=30):
     for var in ["TEXINPUTS", "TEXMFHOME", "TEXMF", "TEXMFVAR", "TEXMFCONFIG"]:
         env.pop(var, None)
 
+    # biblatex documents (e.g. the APA 7 template) need biber instead of bibtex.
+    bib_tool = "bibtex"
+    try:
+        with open(os.path.join(cwd, f"{texfile_name}.tex"), encoding="utf-8") as f:
+            tex_source = f.read()
+        if "\\addbibresource" in tex_source or "backend=biber" in tex_source:
+            bib_tool = "biber"
+    except OSError:
+        pass
+
     commands = [
         ["pdflatex", "-interaction=nonstopmode", f"{texfile_name}.tex"],
-        ["bibtex", texfile_name],
+        [bib_tool, texfile_name],
         ["pdflatex", "-interaction=nonstopmode", f"{texfile_name}.tex"],
         ["pdflatex", "-interaction=nonstopmode", f"{texfile_name}.tex"],
     ]

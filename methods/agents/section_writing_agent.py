@@ -32,7 +32,7 @@ Output:
 import json
 from typing import List, Dict
 
-from methods.prompts.section_writing_agent import section_writing_agent_prompt
+from methods.prompts.domains import get_prompts
 from utils.gemini_utils import parse_gemini_latex_results
 from utils.llm_backend_utils import call_llm_with_images
 
@@ -51,10 +51,11 @@ class SectionWritingAgent:
         figures_info_path: str,
         guidelines_path: str,
         model_name: str = "gemini-3.1-pro-preview",
+        domain: str = "ai",
     ):
 
         self.model_name = model_name
-        self.system_prompt = section_writing_agent_prompt
+        self.system_prompt = get_prompts(domain)["section_writing"]
 
         self.outline_path = outline_path
         self.template_path = template_path
@@ -109,7 +110,7 @@ class SectionWritingAgent:
         if not citation_map:
             return "No citation data provided."
 
-        context = "### REFERENCE LIBRARY (Use these keys for \\cite{})\n"
+        context = "### REFERENCE LIBRARY (Use these citation keys)\n"
         for key, data in citation_map.items():
             title = data.get("title", "Unknown Title")
             authors_list = data.get("authors", [])

@@ -38,6 +38,7 @@ def write_single_paper(
     writer_model_name: str = "gemini-3.1-pro-preview",
     reflection_model_name: str = "gemini-3.1-pro-preview",
     research_cutoff: str = "2024-11",
+    domain: str = "ai",
 ):
     latex_writeup_dir = osp.join(base_dir, "latex_writeup")
     pdf_file = osp.join(base_dir, "final_paper.pdf")
@@ -91,7 +92,9 @@ def write_single_paper(
             ###############################################################################################
             # Step 1: Call outline agent
             outline_agent = OutlineAgent(
-                model_name=writer_model_name, cutoff_date=research_cutoff
+                model_name=writer_model_name,
+                cutoff_date=research_cutoff,
+                domain=domain,
             )
             outline_file_path = osp.join(base_dir, "outline.json")
             outline_agent.run(
@@ -113,6 +116,7 @@ def write_single_paper(
                 output_dir=literature_agent_output_dir,
                 model_name=writer_model_name,
                 max_workers=3,
+                domain=domain,
             )
             literature_agent.run(
                 outline_path=outline_file_path,
@@ -145,6 +149,7 @@ def write_single_paper(
                 figures_info_path=osp.join(figures_dir, "info.json"),
                 guidelines_path=guidelines_path,
                 model_name=writer_model_name,
+                domain=domain,
             )
             raw_draft_tex_path = osp.join(latex_writeup_dir, "raw_draft_paper.tex")
             section_writing_agent.run(output_path=raw_draft_tex_path)
@@ -171,6 +176,7 @@ def write_single_paper(
                 model_name=reflection_model_name,
                 max_reflections=3,
                 work_dir=content_refinement_workdir,
+                domain=domain,
             )
             content_refinment_agent_output_pdf_path = content_refinement_agent.run(
                 texfile_path=raw_draft_tex_path

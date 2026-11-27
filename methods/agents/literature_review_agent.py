@@ -22,9 +22,7 @@ from typing import List, Optional, Dict
 from pydantic import BaseModel
 from google.genai import types  # type: ignore
 
-from methods.prompts.literature_review_agent import (
-    literature_review_agent_writter_prompt,
-)
+from methods.prompts.domains import get_prompts
 from utils.gemini_utils import call_gemini_with_contents, parse_gemini_latex_results
 from utils.scholar_utils import s2_title_search
 
@@ -71,7 +69,9 @@ class HybridLiteratureAgent:
         output_dir: str,
         model_name: str = "gemini-3.1-pro-preview",
         max_workers: int = 5,
+        domain: str = "ai",
     ):
+        self.prompts = get_prompts(domain)
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
 
@@ -438,7 +438,7 @@ class HybridLiteratureAgent:
             
             INSTRUCTIONS:
             1. Use Google Search to find the EXACT title and year of this paper.
-            2. If the hint refers to a dataset, model architecture, or baseline (e.g., "research paper introducing..."), you MUST find the primary, original paper that introduced it.
+            2. If the hint refers to a dataset, survey, scale, theory, statistical method, model architecture, or baseline (e.g., "research paper introducing..." or "original source introducing..."), you MUST find the primary, original paper that introduced it.
             3. Return EXACTLY 1 candidate paper that matches best.
 
             YOU MUST return the results in json format (```json content```) following this schema:
@@ -454,8 +454,8 @@ class HybridLiteratureAgent:
             CUTOFF DATE: Published BEFORE {cutoff_date}
             
             INSTRUCTIONS:
-            1. Use Google Search to find REAL papers (ArXiv, CVPR, NeurIPS, ICML, ICLR, etc.).
-            2. Only return papers published in top-tier conferences or journals, or highly-cited works, or the exact state-of-the-art relevant to the task.
+            1. {self.prompts['lit_discovery_sources']}
+            2. {self.prompts['lit_discovery_quality_rule']}
 
             YOU MUST return the results in json format (```json content```) following this schema:
             {DiscoveryResult.model_json_schema()}
@@ -489,13 +489,13 @@ class HybridLiteratureAgent:
             "collected_papers": papers_payload,
         }
 
-        writer_system_prompt = literature_review_agent_writter_prompt.format(
+        writer_system_prompt = self.prompts["lit_review_writer"].format(
             paper_count=len(papers),
             min_cite_paper_count=int(len(papers) * 0.9),
             cutoff_date=cutoff_date,
         )
 
-        user_prompt = "Generate the LaTeX for Introduction and Related Work sections."
+        user_prompt = self.prompts["lit_writer_user_prompt"]
         response_dict = call_gemini_with_contents(
             model_name=self.model_name,
             contents=[user_prompt, json.dumps(context_payload)],

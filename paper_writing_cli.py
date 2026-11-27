@@ -37,7 +37,7 @@ def main():
     parser.add_argument(
         "--latex_template_dir",
         required=True,
-        help="Directory containing the LaTeX template (e.g. cvpr2025/iclr2025).",
+        help="Directory containing the LaTeX template (e.g. cvpr2025, iclr2025, apa7_criminology).",
     )
     parser.add_argument(
         "--idea_filename",
@@ -48,6 +48,17 @@ def main():
         "--experimental_log_filename",
         default="experimental_log.md",
         help="Filename of the experimental log within raw_materials. Default: experimental_log.md",
+    )
+    parser.add_argument(
+        "--domain",
+        default=None,
+        choices=["ai", "social_science"],
+        help=(
+            "Research domain, which selects the agents' instructions. 'ai' = ML/AI "
+            "conference papers; 'social_science' = criminology, criminal justice, "
+            "sociology (APA 7 journal manuscripts). If omitted, read from "
+            "'domain.txt' in the LaTeX template directory, else 'ai'."
+        ),
     )
     parser.add_argument(
         "--writer_model_name",
@@ -88,6 +99,18 @@ def main():
     )
 
     args = parser.parse_args()
+
+    if args.domain is None:
+        domain_file = os.path.join(args.latex_template_dir, "domain.txt")
+        if os.path.exists(domain_file):
+            with open(domain_file) as f:
+                args.domain = f.read().strip()
+        else:
+            args.domain = "ai"
+    from methods.prompts.domains import check_domain
+
+    check_domain(args.domain)
+    print(f"Domain: {args.domain}")
 
     if args.research_cutoff is None:
         args.research_cutoff = datetime.now().strftime("%Y-%m")
@@ -153,6 +176,7 @@ def main():
             image_model_name=args.image_model_name,
             research_cutoff=args.research_cutoff,
             plotting_max_critic_rounds=args.plotting_max_critic_rounds,
+            domain=args.domain,
         )
     else:
         from methods.paper_writer import write_single_paper
@@ -169,6 +193,7 @@ def main():
             writer_model_name=args.writer_model_name,
             reflection_model_name=args.reflection_model_name,
             research_cutoff=args.research_cutoff,
+            domain=args.domain,
         )
 
 
