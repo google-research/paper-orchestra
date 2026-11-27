@@ -359,7 +359,7 @@ class HybridLiteratureAgent:
                     ),
                     title=s2_data["title"],
                     authors=authors_list,
-                    venue=s2_data.get("venue") or "arXiv",
+                    venue=s2_data.get("venue") or j_info.get("name") or "arXiv",
                     year=s2_data.get("year") or cand_year,
                     abstract=abstract_text,
                     citation_count=s2_data.get("citationCount") or 0,
