@@ -59,7 +59,12 @@ def get_genai_client() -> genai.Client:
                     )
                 elif gemini_api_key:
                     print("Using Gemini API Key configuration.")
-                    _genai_client = genai.Client(api_key=gemini_api_key)
+                    # Preview models (e.g. gemini-3.1-pro-preview) are served on
+                    # v1beta; newer google-genai releases default to v1.
+                    _genai_client = genai.Client(
+                        api_key=gemini_api_key,
+                        http_options=types.HttpOptions(api_version="v1beta"),
+                    )
                 else:
                     raise ValueError(
                         "Either VERTEX_AI_PROJECT/VERTEX_AI_LOCATION or GEMINI_API_KEY"
